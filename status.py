@@ -1,11 +1,16 @@
 """Dashboard payload: pure builders so the web page's data is testable without a terminal."""
 import csv
+import math
 import os
 import time
 from collections import deque
 from datetime import datetime
 
+import MetaTrader5 as mt5
+
 import config
+
+_TF_NAMES = {getattr(mt5, f"TIMEFRAME_{k}", None): k for k in ("M1", "M5", "M15", "M30", "H1", "H4", "D1")}
 
 
 def _side(ptype) -> str:
@@ -14,7 +19,8 @@ def _side(ptype) -> str:
 
 def build_status(now: datetime | None, stats, positions, traders, breaker, symbols,
                  started_at: float, now_mono: float, account: dict | None = None,
-                 analytics: dict | None = None, history: list | None = None) -> dict:
+                 analytics: dict | None = None, history: list | None = None,
+                 charts: dict | None = None, news: dict | None = None) -> dict:
     """JSON-serialisable snapshot of one tick.
 
     now=None means no live quote (market closed); stats is then ignored."""
@@ -53,12 +59,68 @@ def build_status(now: datetime | None, stats, positions, traders, breaker, symbo
         "account": account,
         "analytics": analytics,
         "history": history or [],
+        "charts": charts or {},
         "settings": {
             "risk_usd_per_trade": config.RISK_USD_PER_TRADE,
             "trend_filter": config.TREND_FILTER_ENABLED,
             "session_filter": config.SESSION_FILTER_ENABLED,
             "manage_positions": config.MANAGE_POSITIONS,
         },
+    }
+
+
+def _num(v):
+    """float or None (NaN / missing -> None), rounded to 5 dp."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(f) else round(f, 5)
+
+
+def chart_block(df, symbol: str, positions, n: int | None = None) -> dict | None:
+    """Closed signal-timeframe candles with bands, RSI, setup flags and candlestick patterns,
+    plus the open position levels, for the dashboard's candle panel. None without data."""
+    if df is None or len(df) < 2:
+        return None
+    n = n or config.CHART_BARS
+    closed = df.iloc[:-1].tail(n)                     # last row is the forming bar
+    cols = set(closed.columns)
+    col = lambda r, c: _num(r[c]) if c in cols else None
+    bars = []
+    for _, r in closed.iterrows():
+        bars.append({
+            "t": r["time"].strftime("%Y-%m-%d %H:%M"),
+            "o": _num(r["open"]), "h": _num(r["high"]), "l": _num(r["low"]), "c": _num(r["close"]),
+            "bb_u": col(r, "upper_band"), "bb_m": col(r, "sma"), "bb_l": col(r, "lower_band"),
+            "rsi": col(r, "rsi"),
+            "bull": str(r["bull_pattern"]) if "bull_pattern" in cols and r["bull_pattern"] else "",
+            "bear": str(r["bear_pattern"]) if "bear_pattern" in cols and r["bear_pattern"] else "",
+            "setup": "BUY" if "buy_setup" in cols and bool(r["buy_setup"]) else
+                     "SELL" if "sell_setup" in cols and bool(r["sell_setup"]) else "",
+        })
+    last = closed.iloc[-1]
+    ema = col(last, "trend_ema")
+    trend = None if ema is None else ("up" if float(last["close"]) >= ema else "down")
+    pos = next((p for p in positions if p.symbol == symbol), None)
+    position = None
+    if pos is not None:
+        position = {"side": _side(pos.type), "entry": _num(pos.price_open),
+                    "sl": _num(pos.sl) or None, "tp": _num(pos.tp) or None}
+    accepted = list(config.CANDLE_PATTERNS) if config.CANDLE_PATTERNS is not None else None
+    patterns = []
+    for b in reversed(bars):
+        both = b["bull"] and b["bull"] == b["bear"]
+        for name, d in ((b["bull"], "neutral" if both else "bull"), ("" if both else b["bear"], "bear")):
+            if name:
+                patterns.append({"t": b["t"], "name": name, "dir": d, "setup": bool(b["setup"]),
+                                 "accepted": accepted is None or name in accepted})
+        if len(patterns) >= 15:
+            break
+    return {
+        "timeframe": _TF_NAMES.get(config.TIMEFRAME, str(config.TIMEFRAME)),
+        "mode": config.CANDLE_MODE, "accepted": accepted,
+        "bars": bars, "trend_ema": ema, "trend": trend, "position": position, "patterns": patterns,
     }
 
 

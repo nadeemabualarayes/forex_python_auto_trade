@@ -11,11 +11,12 @@ from analytics import pair_trades, build_analytics, trade_dicts
 from execution import init_mt5, bot_positions
 from history import TradeStore, sync_deals, snapshot_equity
 from journal import setup_logging, log
+from news import NewsFilter
 from position_manager import manage_positions
 from reporting import Reporter
 from risk import ServerClock, get_daily_stats, breaker_reason
 from publisher import PagesPublisher
-from status import build_status, with_trades
+from status import build_status, with_trades, chart_block
 from strategy import SymbolTrader
 from telegram_notifier import send_telegram
 from web import StatusServer
@@ -34,9 +35,13 @@ class Bot:
         self.account: dict | None = None
         self.analytics: dict | None = None
         self.history: list = []
+        self.charts: dict = {}
+        self.last_chart_refresh: float | None = None
         self.started_at = time.monotonic()
         self.breaker_alerted = False
         self.no_quote_logged = False
+        self.news = NewsFilter()
+        self.news_alerted: str | None = None        # blackout reason already announced on Telegram
 
     def _maybe_sync_history(self, now) -> None:
         """Every HISTORY_SYNC_SECONDS: pull deals from MT5, snapshot equity, recompute the
@@ -64,15 +69,34 @@ class Bot:
         except Exception as e:
             log.warning("history sync failed: %s", e)
 
+    def _maybe_refresh_charts(self) -> None:
+        """Every CHART_REFRESH_SECONDS: rebuild the per-symbol candle panels from each trader's frame."""
+        mono = time.monotonic()
+        if self.last_chart_refresh is not None and mono - self.last_chart_refresh < config.CHART_REFRESH_SECONDS:
+            return
+        self.last_chart_refresh = mono
+        try:
+            positions = bot_positions()
+            charts = {}
+            for symbol, trader in self.traders.items():
+                blk = chart_block(trader.frame(config.CHART_REFRESH_SECONDS), symbol, positions)
+                if blk is not None:
+                    charts[symbol] = blk
+            self.charts = charts
+        except Exception as e:
+            log.warning("chart refresh failed: %s", e)
+
     def _publish(self, now, stats, breaker) -> None:
         """Push a snapshot to the status page and (on its interval) to GitHub Pages.
         Never allowed to break trading."""
         if self.web is None and self.pages is None:
             return
         try:
+            self._maybe_refresh_charts()
             snap = build_status(now, stats, bot_positions(), self.traders.values(), breaker,
                                 self.symbols, self.started_at, time.monotonic(),
-                                account=self.account, analytics=self.analytics, history=self.history)
+                                account=self.account, analytics=self.analytics, history=self.history,
+                                charts=self.charts, news=self.news.snapshot())
             if self.web is not None:
                 self.web.update(snap)
             if self.pages is not None:
@@ -84,6 +108,7 @@ class Bot:
         """One pass. Returns how long to sleep before the next one."""
         now = self.clock.now(self.symbols)
         self._maybe_sync_history(now)
+        self.news.maybe_refresh()                    # cheap when not due; runs on weekends too
         if now is None:
             if not self.no_quote_logged:
                 log.warning("no quotes for %s yet (market closed?)", self.symbols)
@@ -110,8 +135,17 @@ class Bot:
             return config.BREAKER_SLEEP_SECONDS
         self.breaker_alerted = False
 
+        news_block = self.news.block_reason()
+        if news_block and news_block != self.news_alerted:
+            log.info("NEWS %s: entries paused %d min before / %d min after", news_block,
+                     config.NEWS_BLOCK_BEFORE_MIN, config.NEWS_BLOCK_AFTER_MIN)
+            send_telegram(f"\U0001F4F0 <b>News blackout</b>\n▪ {news_block}\n"
+                          f"<i>No new entries {config.NEWS_BLOCK_BEFORE_MIN} min before / "
+                          f"{config.NEWS_BLOCK_AFTER_MIN} min after.</i>")
+        self.news_alerted = news_block
+
         for trader in self.traders.values():
-            trader.step(now, stats.entries)
+            trader.step(now, stats.entries, news_block)
         self._publish(now, stats, None)
         return config.LOOP_SLEEP_SECONDS
 
@@ -126,9 +160,9 @@ def run() -> int:
         log.error("no tradable symbols, exiting with code 1 so the scheduler restarts us")
         return 1
 
-    log.info("START symbols=%s risk=$%.2f/trade cap=%d/day trend=%s session=%s",
+    log.info("START symbols=%s risk=$%.2f/trade cap=%d/day trend=%s session=%s news=%s",
              symbols, config.RISK_USD_PER_TRADE, config.MAX_TRADES_PER_DAY,
-             config.TREND_FILTER_ENABLED, config.SESSION_FILTER_ENABLED)
+             config.TREND_FILTER_ENABLED, config.SESSION_FILTER_ENABLED, config.NEWS_FILTER_ENABLED)
     send_telegram(f"\U0001F680 <b>Bot started</b> on {', '.join(symbols)}")
     web = StatusServer() if config.WEB_ENABLED else None
     if web and not web.start():

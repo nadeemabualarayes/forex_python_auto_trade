@@ -117,6 +117,7 @@ While the bot runs it serves a dashboard from its own process, no extra packages
 - KPI strip: account equity and balance, today's net, total net, profit factor, expectancy per trade, win rate with streaks, max drawdown in dollars and percent, open P&L.
 - Charts: cumulative net P&L with drawdown, daily net P&L, net by hour of day and weekday (server time), net by exit reason, and the account equity curve from hourly snapshots.
 - Tables: statistics per symbol and per direction, the bot's per-symbol state, open positions, the full trade history with filters and sortable columns, and the recent event journal.
+- Candles: per symbol, the last closed bars on the signal timeframe with Bollinger bands and RSI, every Japanese candlestick pattern `candles.py` detects marked on the chart (filled markers are the ones in `CANDLE_PATTERNS`), the Bollinger + RSI setup bars, the H1 trend, and the open position's entry, stop, and target lines. Refreshed every `CHART_REFRESH_SECONDS`, `CHART_BARS` bars deep.
 
 Settings live in `config.py` under *Status page* and *Trade history & analytics*: `WEB_ENABLED`, `WEB_PORT`, `WEB_HOST` (`"0.0.0.0"` to reach it from your phone on the same Wi-Fi), `HISTORY_INCLUDE_ALL_DEALS` to include manual trades on the account, `HISTORY_MAX_TRADES` for the history table. The page is read-only and has no login, so do not expose it to the internet.
 

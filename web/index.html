@@ -72,6 +72,14 @@
   select, .btn { font: inherit; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
   .btn { cursor: pointer; } .btn:hover { border-color: var(--text-3); }
   .more { padding: 10px 12px; text-align: center; border-top: 1px solid var(--border); }
+  .cpanel .head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; padding: 10px 14px 4px; font-size: 12px; color: var(--text-2); }
+  .cpanel .head b { color: var(--text); font-size: 14px; }
+  .cpanel .chart { height: 260px; margin: 0 8px; }
+  .cpanel .chart.rsi { height: 90px; }
+  .cpanel .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 14px 8px; font-size: 11px; color: var(--text-3); }
+  .cpanel table { font-size: 12px; }
+  .cpanel td, .cpanel th { padding: 5px 12px; }
+  .up { color: var(--good); } .down { color: var(--critical); }
   footer { color: var(--text-3); font-size: 12px; padding: 0 24px 24px; text-align: center; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -124,6 +132,11 @@
       <div class="card chart-card"><div class="title"><span>By weekday</span></div><div class="chart"><canvas id="wdChart"></canvas></div></div>
       <div class="card chart-card"><div class="title"><span>By exit reason</span></div><div class="chart"><canvas id="reasonChart"></canvas></div></div>
     </div>
+  </section>
+
+  <section id="candles-section">
+    <h2>Candles <span class="muted" id="candles-note">closed bars on the signal timeframe, with the patterns the bot detects</span></h2>
+    <div id="candle-panels" class="grid-2"></div>
   </section>
 
   <section id="acct-section" style="display:none">
@@ -372,6 +385,80 @@
   ["symbol", "side", "reason"].forEach(f => $("f-" + f).addEventListener("change", e => { hist[f] = e.target.value; hist.shown = 50; if (lastStatus) renderHistory(lastStatus.history); }));
   $("more-btn").addEventListener("click", () => { hist.shown += 50; if (lastStatus) renderHistory(lastStatus.history); });
 
+  // ---------- candle panels ----------
+  let lastChartsJson = "";
+  function candlePanel(sym, c) {
+    const pos = c.position ? `position <b class="${c.position.side === "BUY" ? "up" : "down"}">${c.position.side}</b> @ ${price(c.position.entry)}${c.position.sl ? " · SL " + price(c.position.sl) : ""}${c.position.tp ? " · TP " + price(c.position.tp) : ""}` : "no position";
+    const trend = c.trend ? `H1 trend <b class="${c.trend}">${c.trend === "up" ? "▲ up" : "▼ down"}</b> · EMA ${price(c.trend_ema)}` : "trend n/a";
+    const last = c.bars[c.bars.length - 1];
+    const rows = (c.patterns || []).map(p => `<tr><td>${esc(p.t.slice(5))}</td><td><span class="tag ${p.accepted ? "" : ""}">${esc(p.name)}</span></td>
+      <td class="${p.dir === "bull" ? "up" : p.dir === "bear" ? "down" : ""}">${p.dir === "bull" ? "▲ bull" : p.dir === "bear" ? "▼ bear" : "● neutral"}</td><td>${p.setup ? "BB + RSI setup" : ""}</td><td>${p.accepted ? "in strategy list" : "<span class=\"muted\">info only</span>"}</td></tr>`).join("");
+    return `<div class="card cpanel" id="cp-${sym}">
+      <div class="head"><b>${esc(sym)}</b><span>${esc(c.timeframe)} · last close ${last ? price(last.c) : "—"} · RSI ${last && last.rsi != null ? last.rsi.toFixed(1) : "—"}</span><span>${trend}</span><span>${pos}</span></div>
+      <div class="chart"><canvas id="cs-${sym}"></canvas></div>
+      <div class="chart rsi"><canvas id="rsi-${sym}"></canvas></div>
+      <div class="legend"><span>▲ bullish pattern</span><span>▼ bearish pattern</span><span>● neutral (doji)</span><span>filled = in the strategy's accepted list (${c.mode} mode)</span><span>◆ Bollinger + RSI setup bar</span><span>dashed = position entry / SL / TP</span></div>
+      <table><thead><tr><th>Time</th><th>Pattern</th><th>Direction</th><th>Setup</th><th>Strategy</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="empty">No patterns in the last ' + c.bars.length + ' bars</td></tr>'}</tbody></table>
+    </div>`;
+  }
+  function renderCandles(charts) {
+    const syms = Object.keys(charts || {});
+    $("candles-section").style.display = syms.length ? "" : "none";
+    const json = JSON.stringify(charts || {});
+    if (json === lastChartsJson) return;               // nothing new since the last poll
+    lastChartsJson = json;
+    $("candle-panels").innerHTML = syms.map(s => candlePanel(s, charts[s])).join("");
+    if (!window.Chart) return;
+    const good = cssVar("--good"), crit = cssVar("--critical"), accent = cssVar("--accent"), text3 = cssVar("--text-3"), warn = cssVar("--warning"), border = cssVar("--border"), text2 = cssVar("--text-2");
+    for (const sym of syms) {
+      const c = charts[sym], bars = c.bars;
+      const labels = bars.map(b => b.t.slice(11));
+      const colors = bars.map(b => b.c >= b.o ? good : crit);
+      const range = Math.max(...bars.map(b => b.h)) - Math.min(...bars.map(b => b.l)) || 1;
+      const pad = range * 0.03;
+      const dec = Math.max(...bars.map(b => b.h)) < 100 ? 3 : 2;
+      const flat = v => bars.map(() => v);
+      const ds = [
+        { type: "bar", label: "wick", data: bars.map(b => [b.l, b.h]), backgroundColor: colors, barPercentage: 0.12, categoryPercentage: 1, order: 3 },
+        { type: "bar", label: "OHLC", data: bars.map(b => [b.o, b.c]), backgroundColor: colors, barPercentage: 0.7, categoryPercentage: 1, minBarLength: 1, order: 2 },
+        { type: "line", label: "BB upper", data: bars.map(b => b.bb_u), borderColor: rgba(accent, 0.7), borderWidth: 1, pointRadius: 0, spanGaps: true, order: 4 },
+        { type: "line", label: "BB mid", data: bars.map(b => b.bb_m), borderColor: text3, borderWidth: 1, borderDash: [3, 3], pointRadius: 0, spanGaps: true, order: 4 },
+        { type: "line", label: "BB lower", data: bars.map(b => b.bb_l), borderColor: rgba(accent, 0.7), borderWidth: 1, pointRadius: 0, spanGaps: true, order: 4 },
+        { type: "line", label: "bull pattern", data: bars.map(b => b.bull ? b.l - pad : null), showLine: false, pointStyle: bars.map(b => b.bull && b.bull === b.bear ? "circle" : "triangle"), pointRotation: 0,
+          pointRadius: bars.map(b => b.bull === b.bear ? 3 : (c.accepted == null || c.accepted.includes(b.bull)) ? 7 : 5),
+          pointBackgroundColor: bars.map(b => b.bull === b.bear ? text3 : (c.accepted == null || c.accepted.includes(b.bull)) ? good : "transparent"),
+          pointBorderColor: bars.map(b => b.bull === b.bear ? text3 : good), pointBorderWidth: 1.5, order: 1, meta: bars.map(b => b.bull) },
+        { type: "line", label: "bear pattern", data: bars.map(b => b.bear && b.bear !== b.bull ? b.h + pad : null), showLine: false, pointStyle: "triangle", pointRotation: 180,
+          pointRadius: bars.map(b => (c.accepted == null || c.accepted.includes(b.bear)) ? 7 : 5), pointBackgroundColor: bars.map(b => (c.accepted == null || c.accepted.includes(b.bear)) ? crit : "transparent"),
+          pointBorderColor: crit, pointBorderWidth: 1.5, order: 1, meta: bars.map(b => b.bear) },
+        { type: "line", label: "setup", data: bars.map(b => b.setup ? b.c : null), showLine: false, pointStyle: "rectRot", pointRadius: 4, pointBackgroundColor: warn, pointBorderColor: warn, order: 0, meta: bars.map(b => b.setup ? b.setup + " setup" : "") },
+      ];
+      if (c.position) {
+        ds.push({ type: "line", label: "entry", data: flat(c.position.entry), borderColor: accent, borderWidth: 1, borderDash: [6, 4], pointRadius: 0, order: 5 });
+        if (c.position.sl) ds.push({ type: "line", label: "SL", data: flat(c.position.sl), borderColor: crit, borderWidth: 1, borderDash: [6, 4], pointRadius: 0, order: 5 });
+        if (c.position.tp) ds.push({ type: "line", label: "TP", data: flat(c.position.tp), borderColor: good, borderWidth: 1, borderDash: [6, 4], pointRadius: 0, order: 5 });
+      }
+      mk("cs-" + sym, { data: { labels, datasets: ds }, options: {
+        responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: false }, tooltip: {
+          filter: i => i.dataset.label !== "wick" && i.raw != null && !(Array.isArray(i.raw) && i.raw.length === 0),
+          callbacks: { title: i => bars[i[0].dataIndex].t,
+            label: i => { const b = bars[i.dataIndex], d = i.dataset;
+              if (d.label === "OHLC") return ` O ${b.o.toFixed(dec)}  H ${b.h.toFixed(dec)}  L ${b.l.toFixed(dec)}  C ${b.c.toFixed(dec)}`;
+              if (d.meta) return d.meta[i.dataIndex] ? ` ${d.label}: ${d.meta[i.dataIndex]}` : null;
+              return ` ${d.label} ${Number(i.raw).toFixed(dec)}`; } } } },
+        scales: { x: { grid: { display: false }, border: { color: border }, ticks: { color: text2, maxTicksLimit: 10, maxRotation: 0, autoSkip: true } },
+                  y: { beginAtZero: false, min: Math.min(...bars.map(b => b.l)) - pad * 2, max: Math.max(...bars.map(b => b.h)) + pad * 2, grid: { color: border }, border: { display: false }, position: "right", ticks: { color: text2, maxTicksLimit: 7, callback: v => Number(v).toFixed(dec) } } } } });
+      mk("rsi-" + sym, { type: "line", data: { labels, datasets: [
+          { data: bars.map(b => b.rsi), borderColor: accent, borderWidth: 1.2, pointRadius: 0, spanGaps: true, order: 1 },
+          { data: flat(70), borderColor: rgba(crit, 0.6), borderWidth: 1, borderDash: [3, 3], pointRadius: 0, order: 2 },
+          { data: flat(30), borderColor: rgba(good, 0.6), borderWidth: 1, borderDash: [3, 3], pointRadius: 0, order: 2 } ] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+          plugins: { legend: { display: false }, tooltip: { filter: i => i.datasetIndex === 0, callbacks: { title: i => bars[i[0].dataIndex].t, label: i => " RSI " + Number(i.raw).toFixed(1) } } },
+          scales: { x: { display: false }, y: { min: 0, max: 100, grid: { color: border }, border: { display: false }, position: "right", ticks: { color: text2, stepSize: 35, callback: v => v === 0 ? "" : v } } } } });
+    }
+  }
+
   // ---------- main render ----------
   function render(s) {
     lastStatus = s;
@@ -417,6 +504,7 @@
     renderCharts(a || { equity_curve: [], daily: [], by_hour: {}, by_weekday: {}, by_reason: {}, equity_snapshots: [] });
     renderStats(a);
     renderHistory(s.history);
+    renderCandles(s.charts);
 
     $("sym-cards").innerHTML = (s.traders || []).map(t => `
       <div class="sym"><div class="name">${esc(t.symbol)} ${t.state === "watching" ? '<span class="tag">watching</span>' : ""}</div>
@@ -454,7 +542,7 @@
       setPill($("conn"), "bot unreachable", "bad");
     }
   }
-  if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (lastStatus) renderCharts(lastStatus.analytics); });
+  if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (lastStatus) { renderCharts(lastStatus.analytics); lastChartsJson = ""; renderCandles(lastStatus.charts); } });
   poll();
   setInterval(poll, 5000);
 })();

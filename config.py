@@ -52,6 +52,18 @@ CANDLE_LOOKBACK = 1                     # confirm mode: bars a BB+RSI setup stay
 CANDLE_PATTERNS = ("hammer", "inverted_hammer", "shooting_star", "hanging_man")   # None = every pattern (names: candles.BULL/BEAR_PATTERNS)
 CANDLE_ONLY_RSI = 50                    # only mode: buy patterns need rsi < this, sell patterns rsi > 100 - this
 
+# ── News filter (news.py) ──────────────────────────────────────────────────
+NEWS_FILTER_ENABLED = True              # no new entries around high-impact releases
+NEWS_CURRENCIES = ("USD",)              # feed "country" codes to watch
+NEWS_IMPACTS = ("High",)                # feed impact levels: High / Medium / Low / Holiday
+NEWS_BLOCK_BEFORE_MIN = 15
+NEWS_BLOCK_AFTER_MIN = 15
+NEWS_REFRESH_MINUTES = 240              # feed re-fetch cadence (Forex Factory asks for low traffic)
+NEWS_STALE_HOURS = 72                   # cached calendar older than this counts as unavailable
+NEWS_BLOCK_WHEN_UNAVAILABLE = False     # True: stand aside when the calendar cannot be fetched
+NEWS_URLS = ("https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+             "https://nfs.faireconomy.media/ff_calendar_nextweek.json")
+
 # ── Trend filter (higher timeframe) ────────────────────────────────────────
 TREND_FILTER_ENABLED = True
 TREND_TIMEFRAME = mt5.TIMEFRAME_H1
@@ -94,6 +106,8 @@ HISTORY_DB = "history.db"               # file name inside LOG_DIR
 HISTORY_SYNC_SECONDS = 60               # deal sync + equity snapshot cadence
 HISTORY_INCLUDE_ALL_DEALS = False       # True: every deal on the account, not only this bot's
 HISTORY_MAX_TRADES = 500                # closed trades embedded in the page snapshot
+CHART_BARS = 96                         # closed signal-timeframe candles per symbol on the page
+CHART_REFRESH_SECONDS = 60              # how often the candle charts are refreshed
 
 # ── Telegram ───────────────────────────────────────────────────────────────
 # Set TELEGRAM_TOKEN / TELEGRAM_CHAT_ID in the environment or in a local .env file

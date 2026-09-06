@@ -1,4 +1,5 @@
 """Signal generation and per-symbol trading state."""
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -93,6 +94,8 @@ class SymbolTrader:
         self.symbol = symbol
         self.last_signal_bar = None
         self.last_skip_reason = None
+        self.last_df = None                 # latest indicator frame (for the dashboard candles)
+        self.last_df_mono = 0.0
 
     def _skip(self, reason: str) -> None:
         # Log a reason only when it changes, so the log stays readable at 10 s polling.
@@ -111,15 +114,27 @@ class SymbolTrader:
             if htf is None or len(htf) < config.TREND_EMA_PERIOD:
                 return None, None
             df = attach_trend(df, compute_trend(htf))
+        self.last_df, self.last_df_mono = df, time.monotonic()
         return df, df.iloc[-2]                          # last *closed* candle
 
-    def step(self, server_dt: datetime, entries_today: int) -> None:
-        """One evaluation pass. Places at most one order, once per closed bar."""
+    def frame(self, max_age: float = 60.0):
+        """Latest indicator frame, re-analysed when the cached one is older than max_age seconds."""
+        if self.last_df is not None and time.monotonic() - self.last_df_mono < max_age:
+            return self.last_df
+        df, _ = self.analyse()
+        return df
+
+    def step(self, server_dt: datetime, entries_today: int, news_block: str | None = None) -> None:
+        """One evaluation pass. Places at most one order, once per closed bar.
+        `news_block` is the calendar blackout reason from news.NewsFilter, or None."""
         if bot_positions(self.symbol):
             self._skip("position open")
             return
         if not in_session(server_dt):
             self._skip("outside session")
+            return
+        if news_block:
+            self._skip(news_block)
             return
         if entries_today >= config.MAX_TRADES_PER_DAY:
             self._skip(f"daily trade cap {config.MAX_TRADES_PER_DAY} reached")

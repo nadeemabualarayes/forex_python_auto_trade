@@ -86,3 +86,49 @@ def test_build_status_defaults_without_history():
     s = build_status(now=None, stats=None, positions=[], traders=[], breaker=None, symbols=[],
                      started_at=0.0, now_mono=0.0)
     assert s["account"] is None and s["analytics"] is None and s["history"] == []
+
+
+def _chart_df():
+    import numpy as np
+    import pandas as pd
+    return pd.DataFrame({
+        "time": pd.to_datetime([1_800_000_000 + i * 300 for i in range(5)], unit="s"),
+        "open": [10.0, 10.2, 10.1, 10.4, 10.3], "high": [10.3, 10.4, 10.5, 10.6, 10.5],
+        "low": [9.8, 10.0, 10.0, 10.2, 10.2], "close": [10.2, 10.1, 10.4, 10.3, 10.4],
+        "upper_band": [np.nan, 10.6, 10.7, 10.8, 10.8], "sma": [np.nan, 10.2, 10.3, 10.4, 10.4],
+        "lower_band": [np.nan, 9.8, 9.9, 10.0, 10.0], "rsi": [np.nan, 28.0, 45.0, 72.0, 50.0],
+        "buy_setup": [False, True, False, False, False], "sell_setup": [False, False, False, True, False],
+        "bull_pattern": ["", "hammer", "", "doji", ""], "bear_pattern": ["", "", "", "doji", ""],
+        "trend_ema": [np.nan, 10.0, 10.0, 10.5, 10.5],
+    })
+
+
+def test_chart_block_uses_closed_bars_and_marks_patterns(monkeypatch):
+    from status import chart_block
+    monkeypatch.setattr(config, "CANDLE_PATTERNS", ("hammer",))
+    monkeypatch.setattr(config, "CANDLE_MODE", "confirm")
+    pos = [SimpleNamespace(symbol="XAUUSD", type=0, volume=0.1, price_open=10.15, sl=9.9, tp=10.7, profit=0.5, ticket=1)]
+    blk = chart_block(_chart_df(), "XAUUSD", pos, n=3)
+    assert blk["timeframe"] == "M5" and blk["mode"] == "confirm" and blk["accepted"] == ["hammer"]
+    assert [b["t"] for b in blk["bars"]] == ["2027-01-15 08:05", "2027-01-15 08:10", "2027-01-15 08:15"]  # forming bar dropped, last n
+    b1 = blk["bars"][0]
+    assert (b1["o"], b1["h"], b1["l"], b1["c"]) == (10.2, 10.4, 10.0, 10.1)
+    assert b1["bb_u"] == 10.6 and b1["rsi"] == 28.0 and b1["bull"] == "hammer" and b1["bear"] == "" and b1["setup"] == "BUY"
+    assert blk["bars"][2]["bear"] == "doji" and blk["bars"][2]["setup"] == "SELL"
+    assert blk["trend_ema"] == 10.5 and blk["trend"] == "down"            # last closed close 10.3 < ema 10.5
+    assert blk["position"] == {"side": "BUY", "entry": 10.15, "sl": 9.9, "tp": 10.7}
+    assert blk["patterns"] == [
+        {"t": "2027-01-15 08:15", "name": "doji", "dir": "neutral", "setup": True, "accepted": False},
+        {"t": "2027-01-15 08:05", "name": "hammer", "dir": "bull", "setup": True, "accepted": True},
+    ]
+    import json
+    json.dumps(blk)
+
+
+def test_chart_block_handles_nan_and_missing_columns():
+    from status import chart_block
+    df = _chart_df().drop(columns=["trend_ema"])
+    blk = chart_block(df, "XAGUSD", [], n=10)
+    assert blk["bars"][0]["bb_u"] is None and blk["bars"][0]["rsi"] is None
+    assert blk["trend_ema"] is None and blk["trend"] is None and blk["position"] is None
+    assert chart_block(None, "XAGUSD", [], n=10) is None
