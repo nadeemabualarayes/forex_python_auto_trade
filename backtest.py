@@ -1,0 +1,185 @@
+"""Replay the live signal code over MT5 history.
+
+    python backtest.py --symbol XAUUSD --days 60 [--csv out.csv]
+
+Simulates: trend + session filters, daily trade cap, daily loss / loss-streak breaker,
+ATR SL/TP resolved against later highs/lows (SL wins if both hit in one bar),
+one position at a time, entry at next bar open +/- half spread.
+Not simulated: breakeven/trailing stop, slippage, commission, swap.
+"""
+import argparse
+import csv
+from dataclasses import dataclass, asdict
+from datetime import datetime, timedelta, timezone
+
+import numpy as np
+import pandas as pd
+
+import config
+from strategy import generate_signal, in_session, build_levels
+from technicals import compute_indicators, compute_trend, attach_trend
+
+
+@dataclass
+class SimTrade:
+    symbol: str
+    side: str
+    entry_time: object
+    entry: float
+    sl: float
+    tp: float
+    lot: float
+    exit_time: object = None
+    exit: float = 0.0
+    reason: str = ""
+    pnl: float = 0.0
+
+
+# -- Pure simulation ------------------------------------------------------------
+def resolve_exit(df: pd.DataFrame, start: int, side: str, sl: float, tp: float):
+    """Scan bars from `start`; return (idx, price, reason) or None if never closed."""
+    highs, lows = df["high"].values, df["low"].values
+    for j in range(start, len(df)):
+        if side == "BUY":
+            if lows[j] <= sl:
+                return j, sl, "SL"
+            if highs[j] >= tp:
+                return j, tp, "TP"
+        else:
+            if highs[j] >= sl:
+                return j, sl, "SL"
+            if lows[j] <= tp:
+                return j, tp, "TP"
+    return None
+
+
+def run_backtest(df: pd.DataFrame, symbol: str, spread_price: float, tick_size: float,
+                 tick_value: float, lot_fn) -> list:
+    """df must already carry indicators (and trend_ema if the filter is on)."""
+    trades = []
+    day, entries_today, pnl_today, streak = None, 0, 0.0, 0
+    i = 1
+    while i < len(df) - 1:
+        bar = df.iloc[i]
+        i += 1
+        if np.isnan(bar["atr"]):
+            continue
+        t = bar["time"]
+        if t.date() != day:
+            day, entries_today, pnl_today, streak = t.date(), 0, 0.0, 0
+        if not in_session(t):
+            continue
+        if entries_today >= config.MAX_TRADES_PER_DAY:
+            continue
+        if pnl_today <= -config.MAX_DAILY_LOSS_USD or streak >= config.MAX_CONSECUTIVE_LOSSES:
+            continue
+        side = generate_signal(bar)
+        if not side:
+            continue
+
+        nxt = df.iloc[i]                                # bar after the signal bar
+        mid = float(nxt["open"])
+        lv = build_levels(side, mid + spread_price / 2, mid - spread_price / 2, float(bar["atr"]))
+        lot = lot_fn(lv.sl_dist)
+        if lot <= 0:
+            continue
+        entries_today += 1
+        res = resolve_exit(df, i, side, lv.sl, lv.tp)
+        if res is None:
+            break                                       # still open at end of data
+        j, px, reason = res
+        move = (px - lv.entry) if side == "BUY" else (lv.entry - px)
+        pnl = move / tick_size * tick_value * lot
+        trades.append(SimTrade(symbol, side, t, lv.entry, lv.sl, lv.tp, lot,
+                               df.iloc[j]["time"], px, reason, round(pnl, 2)))
+        pnl_today += pnl
+        streak = streak + 1 if pnl < 0 else 0
+        i = j + 1                                       # next signal bar is the closing bar
+    return trades
+
+
+def summarize(trades: list) -> dict:
+    if not trades:
+        return {"trades": 0}
+    pnls = np.array([t.pnl for t in trades])
+    wins, losses = pnls[pnls > 0], pnls[pnls <= 0]
+    equity = np.cumsum(pnls)
+    drawdown = np.maximum.accumulate(np.concatenate([[0.0], equity])) - np.concatenate([[0.0], equity])
+    gp, gl = wins.sum(), -losses.sum()
+    return {
+        "trades": len(trades),
+        "wins": int(len(wins)),
+        "losses": int(len(losses)),
+        "win_rate": round(len(wins) / len(trades) * 100, 1),
+        "net": round(pnls.sum(), 2),
+        "avg_win": round(wins.mean(), 2) if len(wins) else 0.0,
+        "avg_loss": round(losses.mean(), 2) if len(losses) else 0.0,
+        "profit_factor": round(gp / gl, 2) if gl > 0 else float("inf"),
+        "max_drawdown": round(drawdown.max(), 2),
+        "tp_exits": sum(t.reason == "TP" for t in trades),
+        "sl_exits": sum(t.reason == "SL" for t in trades),
+    }
+
+
+# -- Data + CLI ------------------------------------------------------------------
+def load_history(symbol: str, days: int):
+    import MetaTrader5 as mt5
+    from execution import get_rates_range, lot_for_risk
+
+    if not mt5.initialize():
+        raise SystemExit(f"MT5 initialize failed: {mt5.last_error()}")
+    mt5.symbol_select(symbol, True)
+    info = mt5.symbol_info(symbol)
+    if info is None:
+        raise SystemExit(f"unknown symbol {symbol}")
+    end = datetime.now(timezone.utc) + timedelta(days=1)
+    start = end - timedelta(days=days + 1)
+    df = get_rates_range(symbol, config.TIMEFRAME, start, end)
+    htf = get_rates_range(symbol, config.TREND_TIMEFRAME, start - timedelta(days=45), end)
+    mt5.shutdown()
+    if df is None or len(df) < 100:
+        raise SystemExit("not enough signal-TF history (check Max bars in chart in MT5 options)")
+    df = compute_indicators(df)
+    if config.TREND_FILTER_ENABLED:
+        if htf is None or len(htf) < config.TREND_EMA_PERIOD:
+            raise SystemExit("not enough higher-TF history for the trend EMA")
+        df = attach_trend(df, compute_trend(htf))
+    spread_price = float(df["spread"].median()) * info.point if "spread" in df else 0.0
+
+    def lot_fn(sl_dist):
+        return lot_for_risk(sl_dist, config.RISK_USD_PER_TRADE, info.trade_tick_size,
+                            info.trade_tick_value, info.volume_min, info.volume_max, info.volume_step)
+
+    return df, spread_price, info.trade_tick_size, info.trade_tick_value, lot_fn
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--symbol", default=config.SYMBOLS[0])
+    ap.add_argument("--days", type=int, default=60)
+    ap.add_argument("--csv", help="write trade list to this CSV file")
+    ap.add_argument("--no-trend", action="store_true", help="disable the trend filter")
+    ap.add_argument("--no-session", action="store_true", help="disable the session filter")
+    args = ap.parse_args()
+    if args.no_trend:
+        config.TREND_FILTER_ENABLED = False
+    if args.no_session:
+        config.SESSION_FILTER_ENABLED = False
+
+    df, spread, tick_size, tick_value, lot_fn = load_history(args.symbol, args.days)
+    print(f"{args.symbol}: {len(df)} bars {df['time'].iloc[0]} -> {df['time'].iloc[-1]}, "
+          f"median spread {spread:.5g}, trend={config.TREND_FILTER_ENABLED} session={config.SESSION_FILTER_ENABLED}")
+    trades = run_backtest(df, args.symbol, spread, tick_size, tick_value, lot_fn)
+    for k, v in summarize(trades).items():
+        print(f"{k:>14}: {v}")
+    if args.csv:
+        with open(args.csv, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=list(asdict(trades[0]).keys()) if trades else ["symbol"])
+            w.writeheader()
+            for t in trades:
+                w.writerow(asdict(t))
+        print(f"wrote {len(trades)} trades to {args.csv}")
+
+
+if __name__ == "__main__":
+    main()
