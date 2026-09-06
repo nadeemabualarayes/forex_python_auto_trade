@@ -16,7 +16,8 @@ MT5 Terminal <──────────────────────
         ├─ reporting.maybe_heartbeat / maybe_daily_summary
         ├─ risk.breaker_reason()         pause entries on daily loss / loss streak
         └─ strategy.SymbolTrader.step()  per symbol: position? session? cap? spread? -> signal -> order
-                 └─ technicals.py  ATR/BB/RSI on M5, EMA200 on H1 (attach_trend uses last *closed* H1 bar)
+                 └─ candles.py  bull_pattern/bear_pattern per bar; config.CANDLE_MODE off / confirm (setup + pattern) / only
+                 └─ technicals.py  ATR/BB/RSI + setup flags + candlestick patterns on M5, EMA200 on H1 (attach_trend uses last *closed* H1 bar)
         ├─ Bot._maybe_sync_history()     every 60 s: history.sync_deals (MT5 deals -> logs/history.db), equity snapshot,
         │                                analytics.pair_trades/build_analytics cached on the Bot
         ├─ Bot._publish()                status.build_status (+account/analytics/history) -> web.StatusServer (http://127.0.0.1:8080)

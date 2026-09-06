@@ -13,6 +13,7 @@ An automated execution engine linking **Python** with **MetaTrader 5 (MT5)**, de
 5. **Session filter:** trades only inside a server-time window on weekdays.
 6. **Circuit breakers:** daily loss limit, consecutive-loss limit, and a daily entry cap, all computed from MT5 deal history.
 7. **Position management:** stop moves to breakeven after 1 ATR of profit, then trails 1 ATR behind price.
+8. **Candlestick confirmation (optional):** `candles.py` tags every closed bar with the reversal pattern it completes (hammer, shooting star, engulfing, harami, piercing, dark cloud, morning/evening star, tweezers, three soldiers/crows, doji). `CANDLE_MODE = "confirm"` requires a BB+RSI setup within `CANDLE_LOOKBACK` bars **and** a matching pattern on the closed bar; `CANDLE_PATTERNS` restricts which patterns count. On 6 months of history the pin-bar-only confirmation was the one variant profitable on both metals in- and out-of-sample.
 8. **Spread guard:** per-symbol spread cap blocks entries in illiquid conditions.
 9. **Journal and logs:** rotating `logs/bot.log` plus `logs/trades.csv` with every entry, exit, stop move, and rejection.
 10. **Telegram telemetry:** trade open/close alerts, breaker alerts, a heartbeat every few hours, and an end-of-day summary.
