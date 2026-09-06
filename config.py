@@ -93,7 +93,10 @@ def spread_limit(symbol: str) -> int:
     return MAX_ALLOWED_SPREAD_POINTS.get(symbol, MAX_ALLOWED_SPREAD_POINTS["default"])
 
 
-# -- GitHub Pages publisher (publisher.py) --
+# ── GitHub Pages snapshot (publisher.py) ───────────────────────────────────
+# Every PAGES_PUBLISH_SECONDS the bot force-pushes web/index.html + status.json as a
+# single commit to PAGES_BRANCH, so the dashboard is readable from anywhere.
+PAGES_PUBLISH_ENABLED = True
 PAGES_REMOTE = None                     # git remote URL for the gh-pages push; None -> this repo's origin
 PAGES_BRANCH = "gh-pages"
 PAGES_PUBLISH_SECONDS = 300             # minimum seconds between pushes

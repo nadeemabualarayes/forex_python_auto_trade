@@ -5,7 +5,8 @@
 Simulates: trend + session filters, daily trade cap, daily loss / loss-streak breaker,
 ATR SL/TP resolved against later highs/lows (SL wins if both hit in one bar),
 one position at a time, entry at next bar open +/- half spread.
-Not simulated: breakeven/trailing stop, slippage, commission, swap.
+Breakeven + ATR trailing stop are applied on each bar close (config.MANAGE_POSITIONS).
+Not simulated: slippage, commission, swap.
 """
 import argparse
 import csv
@@ -18,6 +19,7 @@ import pandas as pd
 import config
 from strategy import generate_signal, in_session, build_levels
 from technicals import compute_indicators, compute_trend, attach_trend
+from position_manager import next_stop
 
 
 @dataclass
@@ -36,20 +38,33 @@ class SimTrade:
 
 
 # -- Pure simulation ------------------------------------------------------------
-def resolve_exit(df: pd.DataFrame, start: int, side: str, sl: float, tp: float):
-    """Scan bars from `start`; return (idx, price, reason) or None if never closed."""
-    highs, lows = df["high"].values, df["low"].values
+def resolve_exit(df: pd.DataFrame, start: int, side: str, sl: float, tp: float,
+                 entry: float | None = None, manage: bool = False, point: float = 0.01):
+    """Scan bars from `start`; return (idx, price, reason) or None if never closed.
+
+    With `manage`, the live breakeven/trail rule is applied on every bar close (the
+    bar's high/low are checked against the stop that was in force when the bar opened).
+    """
+    highs, lows, closes = df["high"].values, df["low"].values, df["close"].values
+    atrs = df["atr"].values if manage else None
+    moved = False
     for j in range(start, len(df)):
         if side == "BUY":
             if lows[j] <= sl:
-                return j, sl, "SL"
+                return j, sl, "TRAIL" if moved else "SL"
             if highs[j] >= tp:
                 return j, tp, "TP"
         else:
             if highs[j] >= sl:
-                return j, sl, "SL"
+                return j, sl, "TRAIL" if moved else "SL"
             if lows[j] <= tp:
                 return j, tp, "TP"
+        if manage and entry is not None:
+            atr = float(atrs[j])
+            new_sl = next_stop(side, entry, sl, float(closes[j]), atr,
+                               config.BREAKEVEN_ATR, config.TRAIL_ATR, max(point * 5, atr * 0.05))
+            if new_sl is not None:
+                sl, moved = new_sl, True
     return None
 
 
@@ -57,10 +72,12 @@ def run_backtest(df: pd.DataFrame, symbol: str, spread_price: float, tick_size: 
                  tick_value: float, lot_fn) -> list:
     """df must already carry indicators (and trend_ema if the filter is on)."""
     trades = []
+    rows = df.to_dict("records")                       # plain dicts: ~10x faster than df.iloc per bar
+    times = df["time"].values
     day, entries_today, pnl_today, streak = None, 0, 0.0, 0
     i = 1
     while i < len(df) - 1:
-        bar = df.iloc[i]
+        bar = rows[i]
         i += 1
         if np.isnan(bar["atr"]):
             continue
@@ -77,21 +94,21 @@ def run_backtest(df: pd.DataFrame, symbol: str, spread_price: float, tick_size: 
         if not side:
             continue
 
-        nxt = df.iloc[i]                                # bar after the signal bar
-        mid = float(nxt["open"])
+        mid = float(rows[i]["open"])                    # bar after the signal bar
         lv = build_levels(side, mid + spread_price / 2, mid - spread_price / 2, float(bar["atr"]))
         lot = lot_fn(lv.sl_dist)
         if lot <= 0:
             continue
         entries_today += 1
-        res = resolve_exit(df, i, side, lv.sl, lv.tp)
+        res = resolve_exit(df, i, side, lv.sl, lv.tp, entry=lv.entry,
+                           manage=config.MANAGE_POSITIONS, point=tick_size)
         if res is None:
             break                                       # still open at end of data
         j, px, reason = res
         move = (px - lv.entry) if side == "BUY" else (lv.entry - px)
         pnl = move / tick_size * tick_value * lot
         trades.append(SimTrade(symbol, side, t, lv.entry, lv.sl, lv.tp, lot,
-                               df.iloc[j]["time"], px, reason, round(pnl, 2)))
+                               pd.Timestamp(times[j]), px, reason, round(pnl, 2)))
         pnl_today += pnl
         streak = streak + 1 if pnl < 0 else 0
         i = j + 1                                       # next signal bar is the closing bar
@@ -118,6 +135,7 @@ def summarize(trades: list) -> dict:
         "max_drawdown": round(drawdown.max(), 2),
         "tp_exits": sum(t.reason == "TP" for t in trades),
         "sl_exits": sum(t.reason == "SL" for t in trades),
+        "trail_exits": sum(t.reason == "TRAIL" for t in trades),
     }
 
 

@@ -67,3 +67,13 @@ def test_summary():
     assert s["trades"] == 4 and s["wins"] == 2 and s["win_rate"] == 50.0
     assert s["net"] == 6 and s["max_drawdown"] == 6 and s["profit_factor"] == 2.0
     assert summarize([]) == {"trades": 0}
+
+
+def test_resolve_exit_trails_stop_into_profit(monkeypatch):
+    monkeypatch.setattr(config, "BREAKEVEN_ATR", 1.0)
+    monkeypatch.setattr(config, "TRAIL_ATR", 1.0)
+    # entry 100, atr 1: bar0 closes at 102 (2 ATR up -> SL trails to 101), bar1 drops to 100.5 -> trailed stop hit
+    df = pd.DataFrame({"open": [100, 102], "high": [102.5, 102.2], "low": [99.5, 100.5],
+                       "close": [102, 100.8], "atr": [1.0, 1.0]})
+    assert resolve_exit(df, 0, "BUY", 97, 110) is None
+    assert resolve_exit(df, 0, "BUY", 97, 110, entry=100, manage=True) == (1, 101.0, "TRAIL")

@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import config
 from journal import log
-from status import recent_trades
+from status import with_trades
 
 HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "index.html")
 
@@ -91,6 +91,5 @@ class StatusServer:
 
     def payload(self) -> bytes:
         with self._lock:
-            data = dict(self._status)
-        data["trades"] = recent_trades(config.TRADE_JOURNAL, config.WEB_RECENT_TRADES)
-        return json.dumps(data, default=str).encode("utf-8")
+            data = self._status
+        return json.dumps(with_trades(data), default=str).encode("utf-8")

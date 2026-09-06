@@ -154,7 +154,7 @@
     </div>
   </section>
 </main>
-<footer>Updated <span id="generated">—</span> · refreshes every 5 s · served by the bot process</footer>
+<footer>Updated <span id="generated">—</span> <span id="age"></span> · refreshes every 5 s</footer>
 
 <script>
 (function () {
@@ -233,10 +233,14 @@
 
   async function poll() {
     try {
-      const r = await fetch("/status.json", { cache: "no-store" });
+      const r = await fetch("status.json?t=" + Date.now(), { cache: "no-store" });
       if (!r.ok) throw new Error(r.status);
-      render(await r.json());
-      setPill($("conn"), "bot online", "good");
+      const s = await r.json();
+      render(s);
+      const age = s.generated_epoch ? Math.max(0, Date.now() / 1000 - s.generated_epoch) : null;
+      $("age").textContent = age == null ? "" : "(" + (age < 90 ? Math.round(age) + " s" : Math.round(age / 60) + " min") + " ago)";
+      if (age != null && age > 900) setPill($("conn"), "data stale " + Math.round(age / 60) + " min", "warn");
+      else setPill($("conn"), "bot online", "good");
     } catch (e) {
       setPill($("conn"), "bot unreachable", "bad");
     }

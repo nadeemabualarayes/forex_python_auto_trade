@@ -68,7 +68,7 @@ python backtest.py --symbol XAUUSD --days 60
 python backtest.py --symbol XAGUSD --days 90 --no-trend --csv silver.csv
 ```
 
-The backtester uses the same signal, trend, session, sizing, and breaker code as the live bot. It fills at the next bar open plus half the median spread, resolves SL/TP against later highs and lows (SL wins a tie), and does not simulate the trailing stop, slippage, commission, or swap. History depth is limited by the terminal's "Max bars in chart" setting.
+The backtester uses the same signal, trend, session, sizing, and breaker code as the live bot. It fills at the next bar open plus half the median spread, resolves SL/TP against later highs and lows (SL wins a tie), applies the breakeven/ATR trail on each bar close, and does not simulate slippage, commission, or swap. History depth is limited by the terminal's "Max bars in chart" setting.
 
 ---
 
@@ -113,6 +113,16 @@ While the bot runs it serves a small dashboard from its own process, no extra pa
 It shows day net P&L, open P&L, wins/losses, entries against the daily cap, loss streak against the breaker limit, an active circuit-breaker banner, what each symbol is waiting on, open positions, and the last 50 journal rows. It refreshes every 5 seconds from `/status.json`.
 
 Settings live in `config.py` under *Status page*: set `WEB_ENABLED = False` to turn it off, change `WEB_PORT` if 8080 is taken, and set `WEB_HOST = "0.0.0.0"` to reach it from your phone on the same Wi-Fi (then use the PC's LAN address). The page is read-only and has no login, so do not expose it to the internet.
+
+---
+
+## Public dashboard on GitHub Pages
+
+The bot can publish the same dashboard to GitHub Pages so you can read it from anywhere. Every 5 minutes it force-pushes `web/index.html` plus the latest `status.json` as a single commit to the `gh-pages` branch, so `main` stays clean. Pushes use the git credentials already stored on the PC and run on a background thread; a failed push is logged and retried at the next interval.
+
+One-time setup on GitHub: **Settings > Pages > Build and deployment > Source: Deploy from a branch**, then pick `gh-pages` and `/ (root)`. The page appears at `https://<user>.github.io/forex_python_auto_trade/` a minute later.
+
+Settings live in `config.py` under *GitHub Pages snapshot*: `PAGES_PUBLISH_ENABLED`, `PAGES_PUBLISH_SECONDS`, `PAGES_BRANCH`, `PAGES_REMOTE`. The data is a few minutes old (the header shows the age) and it is public, so it shows trades and P&L to anyone with the link. Because the repo is public, keep `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` in `.env` or environment variables only.
 
 ---
 

@@ -23,7 +23,7 @@ def _get(server, path):
 def test_serves_dashboard_html(server):
     status, ctype, body = _get(server, "/")
     assert status == 200 and ctype.startswith("text/html")
-    assert b"/status.json" in body                    # the page polls the JSON endpoint
+    assert b"status.json" in body                     # the page polls the JSON endpoint (relative path)
 
 
 def test_status_json_reflects_latest_update(server):

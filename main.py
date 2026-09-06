@@ -11,30 +11,37 @@ from journal import setup_logging, log
 from position_manager import manage_positions
 from reporting import Reporter
 from risk import ServerClock, get_daily_stats, breaker_reason
-from status import build_status
+from publisher import PagesPublisher
+from status import build_status, with_trades
 from strategy import SymbolTrader
 from telegram_notifier import send_telegram
 from web import StatusServer
 
 
 class Bot:
-    def __init__(self, symbols, web: StatusServer | None = None):
+    def __init__(self, symbols, web: StatusServer | None = None, pages: PagesPublisher | None = None):
         self.symbols = symbols
         self.traders = {s: SymbolTrader(s) for s in symbols}
         self.reporter = Reporter()
         self.clock = ServerClock()
         self.web = web
+        self.pages = pages
         self.started_at = time.monotonic()
         self.breaker_alerted = False
         self.no_quote_logged = False
 
     def _publish(self, now, stats, breaker) -> None:
-        """Push a snapshot to the status page. Never allowed to break trading."""
-        if self.web is None:
+        """Push a snapshot to the status page and (on its interval) to GitHub Pages.
+        Never allowed to break trading."""
+        if self.web is None and self.pages is None:
             return
         try:
-            self.web.update(build_status(now, stats, bot_positions(), self.traders.values(), breaker,
-                                         self.symbols, self.started_at, time.monotonic()))
+            snap = build_status(now, stats, bot_positions(), self.traders.values(), breaker,
+                                self.symbols, self.started_at, time.monotonic())
+            if self.web is not None:
+                self.web.update(snap)
+            if self.pages is not None:
+                self.pages.maybe_publish(with_trades(snap))
         except Exception as e:
             log.warning("status update failed: %s", e)
 
@@ -90,7 +97,11 @@ def run() -> int:
     web = StatusServer() if config.WEB_ENABLED else None
     if web and not web.start():
         web = None
-    bot = Bot(symbols, web)
+    pages = PagesPublisher() if config.PAGES_PUBLISH_ENABLED else None
+    if pages and not pages.remote:
+        log.warning("pages publishing disabled: no git remote found")
+        pages = None
+    bot = Bot(symbols, web, pages)
 
     try:
         while True:
@@ -109,6 +120,8 @@ def run() -> int:
         log.info("STOP bot terminated manually")
         send_telegram("\U0001F6D1 <b>Bot stopped</b> manually")
     finally:
+        if pages:
+            pages.join(10)
         if web:
             web.stop()
         mt5.shutdown()

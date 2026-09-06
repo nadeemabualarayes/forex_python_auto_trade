@@ -1,6 +1,7 @@
 """Dashboard payload: pure builders so the web page's data is testable without a terminal."""
 import csv
 import os
+import time
 from collections import deque
 from datetime import datetime
 
@@ -38,6 +39,7 @@ def build_status(now: datetime | None, stats, positions, traders, breaker, symbo
     } for t in traders]
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_epoch": time.time(),
         "server_time": now.strftime("%Y-%m-%d %H:%M:%S") if now else None,
         "market_open": now is not None,
         "uptime_seconds": int(max(0.0, now_mono - started_at)),
@@ -54,6 +56,13 @@ def build_status(now: datetime | None, stats, positions, traders, breaker, symbo
             "manage_positions": config.MANAGE_POSITIONS,
         },
     }
+
+
+def with_trades(status: dict) -> dict:
+    """Copy of the snapshot with the recent journal rows attached (what the page consumes)."""
+    data = dict(status)
+    data["trades"] = recent_trades(config.TRADE_JOURNAL, config.WEB_RECENT_TRADES)
+    return data
 
 
 def recent_trades(path: str, n: int) -> list[dict]:

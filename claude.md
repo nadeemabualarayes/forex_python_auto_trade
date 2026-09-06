@@ -23,7 +23,7 @@ MT5 Terminal <──────────────────────
         web/index.html  dashboard polling /status.json every 5 s
 run_bot.cmd + install_task.ps1   Task Scheduler "ForexBot": start at logon, restart on non-zero exit (-Restart / -Stop / -Uninstall)
 simulate.py  dry run: real Bot loop + FakeMT5 + scripted price path (logs/sim/, Telegram prefixed SIMULATION)
-backtest.py  standalone replay of strategy.generate_signal over MT5 history (same filters/sizing/breakers)
+backtest.py  standalone replay of strategy.generate_signal over MT5 history (same filters/sizing/breakers/trailing)
 ```
 
 ## Conventions
