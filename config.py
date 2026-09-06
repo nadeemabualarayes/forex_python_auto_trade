@@ -39,8 +39,8 @@ ATR_PERIOD = 14
 BB_PERIOD = 20
 BB_STD = 2.0
 RSI_PERIOD = 14
-RSI_OVERSOLD = 30
-RSI_OVERBOUGHT = 70
+RSI_OVERSOLD = 35                       # Candidate B (2026-09-06 sweep): 35/65 with the trend filter
+RSI_OVERBOUGHT = 65
 SL_ATR_MULTIPLIER = 1.5
 TP_ATR_MULTIPLIER = 3.0
 RATES_LOOKBACK = 120                    # bars fetched on the signal timeframe
@@ -52,12 +52,12 @@ TREND_EMA_PERIOD = 200                  # buy only above EMA, sell only below
 
 # ── Session filter (server time) ───────────────────────────────────────────
 SESSION_FILTER_ENABLED = True
-SESSION_START_HOUR = 7                  # inclusive
-SESSION_END_HOUR = 20                   # exclusive
+SESSION_START_HOUR = 0                  # inclusive (24h server day, weekdays only; sweep 2026-09-06)
+SESSION_END_HOUR = 24                   # exclusive
 TRADING_WEEKDAYS = (0, 1, 2, 3, 4)      # Mon..Fri
 
 # ── Position management ────────────────────────────────────────────────────
-MANAGE_POSITIONS = True
+MANAGE_POSITIONS = False                # trailing stop cut winners in the 2026-09-06 sweep; keep fixed SL/TP
 BREAKEVEN_ATR = 1.0                     # move SL to entry after this much ATR in profit
 TRAIL_ATR = 1.0                         # then trail SL this far behind price
 

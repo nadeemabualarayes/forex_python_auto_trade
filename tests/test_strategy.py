@@ -13,12 +13,19 @@ def bar(close, lower=90.0, upper=110.0, rsi=50.0, trend_ema=None):
     return b
 
 
+@pytest.fixture
+def window_7_20(monkeypatch):
+    monkeypatch.setattr(config, "SESSION_FILTER_ENABLED", True)
+    monkeypatch.setattr(config, "SESSION_START_HOUR", 7)
+    monkeypatch.setattr(config, "SESSION_END_HOUR", 20)
+
+
 class TestSession:
-    def test_inside_window_weekday(self):
+    def test_inside_window_weekday(self, window_7_20):
         assert in_session(datetime(2026, 9, 7, 7, 0))          # Monday 07:00
         assert in_session(datetime(2026, 9, 7, 19, 59))
 
-    def test_edges_and_weekend(self):
+    def test_edges_and_weekend(self, window_7_20):
         assert not in_session(datetime(2026, 9, 7, 6, 59))
         assert not in_session(datetime(2026, 9, 7, 20, 0))     # end is exclusive
         assert not in_session(datetime(2026, 9, 5, 12, 0))     # Saturday

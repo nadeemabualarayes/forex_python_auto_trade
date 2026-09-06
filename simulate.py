@@ -235,43 +235,50 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
     journal.setup_logging()
 
     m5, h1, warmup = build_random_scenario(seed=seed) if trades else build_scenario()
-    fake = FakeMT5(m5, h1, config.MAGIC_NUMBER)
-    fake.i = warmup
-    for mod in (execution, risk, strategy, position_manager, reporting, main):
-        mod.mt5 = fake
+    # the scripted day demonstrates breakeven/trail regardless of the live config
+    overrides = {} if trades else {"MANAGE_POSITIONS": True, "SESSION_START_HOUR": 0, "SESSION_END_HOUR": 24}
+    saved = {k: getattr(config, k) for k in overrides}
+    config.__dict__.update(overrides)
+    try:
+        fake = FakeMT5(m5, h1, config.MAGIC_NUMBER)
+        fake.i = warmup
+        for mod in (execution, risk, strategy, position_manager, reporting, main):
+            mod.mt5 = fake
 
-    sent = []
-    real_send = telegram_notifier.send_telegram
+        sent = []
+        real_send = telegram_notifier.send_telegram
 
-    def sim_send(message: str):
-        message = PREFIX + message
-        sent.append(message)
-        if send_real_telegram:
-            real_send(message)
-        else:
-            journal.log.info("TELEGRAM >> %s", message.replace("\n", " | "))
-    for mod in (execution, reporting, main):
-        mod.send_telegram = sim_send
+        def sim_send(message: str):
+            message = PREFIX + message
+            sent.append(message)
+            if send_real_telegram:
+                real_send(message)
+            else:
+                journal.log.info("TELEGRAM >> %s", message.replace("\n", " | "))
+        for mod in (execution, reporting, main):
+            mod.send_telegram = sim_send
 
-    bot = main.Bot([SYMBOL])
-    breaker_tripped = False
-    def closed():
-        return sum(1 for d in fake.deals if d.entry == _real_mt5.DEAL_ENTRY_OUT)
+        bot = main.Bot([SYMBOL])
+        breaker_tripped = False
+        def closed():
+            return sum(1 for d in fake.deals if d.entry == _real_mt5.DEAL_ENTRY_OUT)
 
-    while fake.i < len(m5) - 1:
+        while fake.i < len(m5) - 1:
+            bot.tick()
+            breaker_tripped = breaker_tripped or bot.breaker_alerted
+            if trades and closed() >= trades:
+                break
+            fake.advance()
         bot.tick()
-        breaker_tripped = breaker_tripped or bot.breaker_alerted
-        if trades and closed() >= trades:
-            break
-        fake.advance()
-    bot.tick()
 
-    rows = []
-    if os.path.exists(config.TRADE_JOURNAL):
-        with open(config.TRADE_JOURNAL, newline="", encoding="utf-8") as f:
-            rows = list(csv.DictReader(f))
-    return {"journal": rows, "telegram": sent, "breaker_tripped": breaker_tripped,
-            "deals": fake.deals, "log_dir": log_dir}
+        rows = []
+        if os.path.exists(config.TRADE_JOURNAL):
+            with open(config.TRADE_JOURNAL, newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+        return {"journal": rows, "telegram": sent, "breaker_tripped": breaker_tripped,
+                "deals": fake.deals, "log_dir": log_dir}
+    finally:
+        config.__dict__.update(saved)
 
 
 def main_cli():
