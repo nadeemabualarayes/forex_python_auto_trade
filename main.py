@@ -8,7 +8,7 @@ import MetaTrader5 as mt5
 
 import config
 from analytics import pair_trades, build_analytics, trade_dicts
-from execution import init_mt5, bot_positions
+from execution import init_mt5, bot_positions, trading_blockers
 from history import TradeStore, sync_deals, snapshot_equity
 from journal import setup_logging, log
 from news import NewsFilter
@@ -150,6 +150,16 @@ class Bot:
         return config.LOOP_SLEEP_SECONDS
 
 
+def warn_if_trading_blocked() -> list[str]:
+    """Startup guard: say *now* why orders would be rejected instead of waiting for the first retcode 10027."""
+    reasons = trading_blockers(mt5.terminal_info(), mt5.account_info())
+    if reasons:
+        log.warning("TRADING BLOCKED: %s", "; ".join(reasons))
+        send_telegram("⚠️ <b>Trading blocked</b> (bot running, entries will be rejected)\n"
+                      + "\n".join(f"▪ {r}" for r in reasons))
+    return reasons
+
+
 def run() -> int:
     """Returns the process exit code: 0 on manual stop, 1 when MT5 is unusable at startup.
 
@@ -164,6 +174,7 @@ def run() -> int:
              symbols, config.RISK_USD_PER_TRADE, config.MAX_TRADES_PER_DAY,
              config.TREND_FILTER_ENABLED, config.SESSION_FILTER_ENABLED, config.NEWS_FILTER_ENABLED)
     send_telegram(f"\U0001F680 <b>Bot started</b> on {', '.join(symbols)}")
+    warn_if_trading_blocked()
     web = StatusServer() if config.WEB_ENABLED else None
     if web and not web.start():
         web = None

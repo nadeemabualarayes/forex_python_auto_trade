@@ -25,6 +25,30 @@ def init_mt5(symbols) -> list:
     return ok
 
 
+def trading_blockers(terminal, account) -> list[str]:
+    """Why order_send would be rejected right now, from terminal_info()/account_info() snapshots.
+
+    Empty list means trading is allowed. Pure so the startup guard is testable without a terminal."""
+    reasons = []
+    if terminal is None:
+        reasons.append("terminal info unavailable (not connected to MT5)")
+    else:
+        if not terminal.connected:
+            reasons.append("terminal is not connected to the trade server")
+        if not terminal.trade_allowed:
+            reasons.append("AutoTrading button is off in the terminal (orders rejected with retcode 10027)")
+        if terminal.tradeapi_disabled:
+            reasons.append("'Disable algorithmic trading via external Python API' is ticked in Options > Experts")
+    if account is None:
+        reasons.append("account info unavailable (not logged in)")
+    else:
+        if not account.trade_allowed:
+            reasons.append("trading is disabled for this account on the server (retcode 10026)")
+        if not account.trade_expert:
+            reasons.append("algorithmic trading is not allowed for this account by the broker")
+    return reasons
+
+
 # -- Data ---------------------------------------------------------------------
 def _to_df(rates):
     if rates is None or len(rates) == 0:
