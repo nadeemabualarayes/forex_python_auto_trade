@@ -77,3 +77,24 @@ def test_resolve_exit_trails_stop_into_profit(monkeypatch):
                        "close": [102, 100.8], "atr": [1.0, 1.0]})
     assert resolve_exit(df, 0, "BUY", 97, 110) is None
     assert resolve_exit(df, 0, "BUY", 97, 110, entry=100, manage=True) == (1, 101.0, "TRAIL")
+
+
+def test_format_report_lists_each_symbol_and_total():
+    from backtest import format_report
+    gold = summarize([SimTrade("XAUUSD", "BUY", None, 1, 0, 2, 0.1, pnl=5, reason="TP"),
+                      SimTrade("XAUUSD", "SELL", None, 1, 2, 0, 0.1, pnl=-3, reason="SL")])
+    text = format_report(180, {"XAUUSD": gold, "XAGUSD": summarize([])})
+    assert "BACKTEST" in text and "180" in text
+    assert "XAUUSD" in text and "XAGUSD" in text
+    assert "no trades" in text
+    assert "+2.00" in text                      # gold net and the total
+    assert "50.0%" in text and "PF 1.67" in text
+
+
+def test_history_spread_falls_back_to_current_when_bars_carry_none():
+    from backtest import history_spread
+    with_data = pd.DataFrame({"spread": [3, 4, 5]})
+    assert history_spread(with_data, fallback_points=7, point=0.00001) == pytest.approx(0.00004)
+    zeros = pd.DataFrame({"spread": [0, 0, 0]})
+    assert history_spread(zeros, fallback_points=7, point=0.00001) == pytest.approx(0.00007)
+    assert history_spread(pd.DataFrame({"close": [1.0]}), fallback_points=7, point=0.00001) == pytest.approx(0.00007)

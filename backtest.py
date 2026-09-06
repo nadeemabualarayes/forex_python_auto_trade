@@ -1,6 +1,6 @@
 """Replay the live signal code over MT5 history.
 
-    python backtest.py --symbol XAUUSD --days 60 [--csv out.csv]
+    python backtest.py --symbol XAUUSD [XAGUSD ...] --days 60 [--csv out.csv] [--telegram]
 
 Simulates: trend + session filters, daily trade cap, daily loss / loss-streak breaker,
 ATR SL/TP resolved against later highs/lows (SL wins if both hit in one bar),
@@ -139,6 +139,32 @@ def summarize(trades: list) -> dict:
     }
 
 
+def format_report(days: int, per_symbol: dict) -> str:
+    """Telegram (HTML) digest of one or more symbol backtests: {symbol: summarize(...)}."""
+    lines = [f"<b>BACKTEST</b> last {days} days (to {datetime.now():%Y-%m-%d})",
+             f"trend={config.TREND_FILTER_ENABLED} session={config.SESSION_FILTER_ENABLED} "
+             f"candles={config.CANDLE_MODE} manage={config.MANAGE_POSITIONS} "
+             f"risk ${config.RISK_USD_PER_TRADE:g}/trade"]
+    total = 0.0
+    for symbol, s in per_symbol.items():
+        if not s.get("trades"):
+            lines.append(f"<b>{symbol}</b>: no trades")
+            continue
+        total += s["net"]
+        lines.append(f"<b>{symbol}</b>: {s['trades']} trades, {s['win_rate']}% win, "
+                     f"net {s['net']:+.2f}, PF {s['profit_factor']}, maxDD {s['max_drawdown']:.2f} "
+                     f"(TP {s['tp_exits']} / SL {s['sl_exits']} / trail {s['trail_exits']})")
+    lines.append(f"<b>Total</b> net {total:+.2f}")
+    lines.append("<i>Not simulated: news blackout, slippage, commission, swap.</i>")
+    return "\n".join(lines)
+
+
+def history_spread(df: pd.DataFrame, fallback_points: float, point: float) -> float:
+    """Median bar spread in price units; brokers that store 0 in history fall back to the live spread."""
+    median = float(df["spread"].median()) if "spread" in df else 0.0
+    return (median if median > 0 else float(fallback_points)) * point
+
+
 # -- Data + CLI ------------------------------------------------------------------
 def load_history(symbol: str, days: int):
     import MetaTrader5 as mt5
@@ -162,7 +188,7 @@ def load_history(symbol: str, days: int):
         if htf is None or len(htf) < config.TREND_EMA_PERIOD:
             raise SystemExit("not enough higher-TF history for the trend EMA")
         df = attach_trend(df, compute_trend(htf))
-    spread_price = float(df["spread"].median()) * info.point if "spread" in df else 0.0
+    spread_price = history_spread(df, info.spread, info.point)
 
     def lot_fn(sl_dist):
         return lot_for_risk(sl_dist, config.RISK_USD_PER_TRADE, info.trade_tick_size,
@@ -173,30 +199,40 @@ def load_history(symbol: str, days: int):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--symbol", default=config.SYMBOLS[0])
+    ap.add_argument("--symbol", nargs="+", default=[config.SYMBOLS[0]],
+                    help="one or more symbols (default: first of config.SYMBOLS)")
     ap.add_argument("--days", type=int, default=60)
     ap.add_argument("--csv", help="write trade list to this CSV file")
     ap.add_argument("--no-trend", action="store_true", help="disable the trend filter")
     ap.add_argument("--no-session", action="store_true", help="disable the session filter")
+    ap.add_argument("--telegram", action="store_true", help="send the summary to the Telegram chat")
     args = ap.parse_args()
     if args.no_trend:
         config.TREND_FILTER_ENABLED = False
     if args.no_session:
         config.SESSION_FILTER_ENABLED = False
 
-    df, spread, tick_size, tick_value, lot_fn = load_history(args.symbol, args.days)
-    print(f"{args.symbol}: {len(df)} bars {df['time'].iloc[0]} -> {df['time'].iloc[-1]}, "
-          f"median spread {spread:.5g}, trend={config.TREND_FILTER_ENABLED} session={config.SESSION_FILTER_ENABLED}")
-    trades = run_backtest(df, args.symbol, spread, tick_size, tick_value, lot_fn)
-    for k, v in summarize(trades).items():
-        print(f"{k:>14}: {v}")
+    all_trades, per_symbol = [], {}
+    for symbol in args.symbol:
+        df, spread, tick_size, tick_value, lot_fn = load_history(symbol, args.days)
+        print(f"{symbol}: {len(df)} bars {df['time'].iloc[0]} -> {df['time'].iloc[-1]}, "
+              f"median spread {spread:.5g}, trend={config.TREND_FILTER_ENABLED} session={config.SESSION_FILTER_ENABLED}")
+        trades = run_backtest(df, symbol, spread, tick_size, tick_value, lot_fn)
+        per_symbol[symbol] = summarize(trades)
+        for k, v in per_symbol[symbol].items():
+            print(f"{k:>14}: {v}")
+        all_trades.extend(trades)
     if args.csv:
         with open(args.csv, "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=list(asdict(trades[0]).keys()) if trades else ["symbol"])
+            w = csv.DictWriter(f, fieldnames=list(asdict(all_trades[0]).keys()) if all_trades else ["symbol"])
             w.writeheader()
-            for t in trades:
+            for t in all_trades:
                 w.writerow(asdict(t))
-        print(f"wrote {len(trades)} trades to {args.csv}")
+        print(f"wrote {len(all_trades)} trades to {args.csv}")
+    if args.telegram:
+        from telegram_notifier import send_telegram
+        send_telegram(format_report(args.days, per_symbol))
+        print("summary sent to Telegram")
 
 
 if __name__ == "__main__":
