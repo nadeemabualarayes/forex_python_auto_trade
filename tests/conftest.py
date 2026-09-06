@@ -39,3 +39,11 @@ def isolated_logs(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "LOG_FILE", str(tmp_path / "bot.log"))
     monkeypatch.setattr(config, "TRADE_JOURNAL", str(tmp_path / "trades.csv"))
     monkeypatch.setattr(config, "TELEGRAM_TOKEN", "")
+
+
+@pytest.fixture(autouse=True)
+def plain_entry_rule(monkeypatch):
+    """Tests exercise the plain BB+RSI rule unless they opt into a candlestick mode themselves."""
+    monkeypatch.setattr(config, "CANDLE_MODE", "off")
+    monkeypatch.setattr(config, "CANDLE_PATTERNS", None)
+    monkeypatch.setattr(config, "CANDLE_LOOKBACK", 3)

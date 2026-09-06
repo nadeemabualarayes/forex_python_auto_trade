@@ -235,8 +235,11 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
     journal.setup_logging()
 
     m5, h1, warmup = build_random_scenario(seed=seed) if trades else build_scenario()
-    # the scripted day demonstrates breakeven/trail regardless of the live config
-    overrides = {} if trades else {"MANAGE_POSITIONS": True, "SESSION_START_HOUR": 0, "SESSION_END_HOUR": 24}
+    # The simulator exercises the bot mechanics with the plain BB+RSI rule (synthetic bars have no
+    # realistic wicks for candlestick patterns); the scripted day also forces breakeven/trail on.
+    overrides = {"CANDLE_MODE": "off"}
+    if not trades:
+        overrides.update({"MANAGE_POSITIONS": True, "SESSION_START_HOUR": 0, "SESSION_END_HOUR": 24})
     saved = {k: getattr(config, k) for k in overrides}
     config.__dict__.update(overrides)
     try:

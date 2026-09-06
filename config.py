@@ -39,17 +39,17 @@ ATR_PERIOD = 14
 BB_PERIOD = 20
 BB_STD = 2.0
 RSI_PERIOD = 14
-RSI_OVERSOLD = 35                       # Candidate B (2026-09-06 sweep): 35/65 with the trend filter
-RSI_OVERBOUGHT = 65
+RSI_OVERSOLD = 30                       # 30/70 with pin-bar confirmation (2026-09-06 candlestick sweep)
+RSI_OVERBOUGHT = 70
 SL_ATR_MULTIPLIER = 1.5
 TP_ATR_MULTIPLIER = 3.0
 RATES_LOOKBACK = 120                    # bars fetched on the signal timeframe
 
 # ── Candlestick patterns (candles.py) ─────────────────────────────────────
-CANDLE_MODE = "off"                     # "off": BB+RSI only | "confirm": BB+RSI setup within CANDLE_LOOKBACK bars
+CANDLE_MODE = "confirm"                 # "off": BB+RSI only | "confirm": BB+RSI setup within CANDLE_LOOKBACK bars
                                         # AND a reversal pattern on the closed bar | "only": pattern + RSI pullback
-CANDLE_LOOKBACK = 3                     # confirm mode: bars a BB+RSI setup stays valid
-CANDLE_PATTERNS = None                  # None = every pattern, or a tuple of names from candles.BULL/BEAR_PATTERNS
+CANDLE_LOOKBACK = 1                     # confirm mode: bars a BB+RSI setup stays valid (1 = the touch bar itself)
+CANDLE_PATTERNS = ("hammer", "inverted_hammer", "shooting_star", "hanging_man")   # None = every pattern (names: candles.BULL/BEAR_PATTERNS)
 CANDLE_ONLY_RSI = 50                    # only mode: buy patterns need rsi < this, sell patterns rsi > 100 - this
 
 # ── Trend filter (higher timeframe) ────────────────────────────────────────
