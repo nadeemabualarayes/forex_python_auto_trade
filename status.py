@@ -60,11 +60,13 @@ def build_status(now: datetime | None, stats, positions, traders, breaker, symbo
         "analytics": analytics,
         "history": history or [],
         "charts": charts or {},
+        "news": news or {"enabled": False, "blocked": None, "next": None, "upcoming": []},
         "settings": {
             "risk_usd_per_trade": config.RISK_USD_PER_TRADE,
             "trend_filter": config.TREND_FILTER_ENABLED,
             "session_filter": config.SESSION_FILTER_ENABLED,
             "manage_positions": config.MANAGE_POSITIONS,
+            "news_filter": config.NEWS_FILTER_ENABLED,
         },
     }
 

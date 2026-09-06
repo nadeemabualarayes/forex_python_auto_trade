@@ -132,3 +132,16 @@ def test_chart_block_handles_nan_and_missing_columns():
     assert blk["bars"][0]["bb_u"] is None and blk["bars"][0]["rsi"] is None
     assert blk["trend_ema"] is None and blk["trend"] is None and blk["position"] is None
     assert chart_block(None, "XAGUSD", [], n=10) is None
+
+
+def test_build_status_carries_news_block(monkeypatch):
+    snap = {"enabled": True, "blocked": "news blackout: CPI m/m (USD) at 2026-09-11 12:30 UTC",
+            "next": {"title": "CPI m/m", "currency": "USD", "time": "2026-09-11 12:30 UTC", "minutes_until": 10},
+            "upcoming": [], "window_minutes": [15, 15], "last_ok": None, "stale": False, "error": None}
+    s = build_status(now=None, stats=None, positions=[], traders=[], breaker=None, symbols=[],
+                     started_at=0.0, now_mono=0.0, news=snap)
+    assert s["news"]["blocked"].startswith("news blackout")
+    assert s["news"]["next"]["title"] == "CPI m/m"
+    s2 = build_status(now=None, stats=None, positions=[], traders=[], breaker=None, symbols=[],
+                      started_at=0.0, now_mono=0.0)
+    assert s2["news"]["enabled"] is False and s2["news"]["blocked"] is None

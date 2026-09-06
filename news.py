@@ -104,22 +104,28 @@ class NewsFilter:
         return True
 
     def refresh(self) -> bool:
-        """Synchronous fetch of every feed URL. Keeps the previous events on any failure."""
-        try:
-            rows = []
-            for url in self.urls:
+        """Synchronous fetch, one URL at a time. A URL that fails is skipped; the events are
+        replaced only when at least one URL succeeded, otherwise the previous copy is kept."""
+        rows, errors, ok = [], [], 0
+        for url in self.urls:
+            try:                                     # network, HTTP, JSON: never break the loop
                 rows.extend(self.fetch(url))
-            self.events = parse_events(rows)
-            self.last_ok, self.error = time.time(), None
-            nxt = next_event(self.events, time.time())
-            log.info("news: %d %s %s events loaded; next %s", len(self.events),
-                     "/".join(config.NEWS_CURRENCIES), "/".join(config.NEWS_IMPACTS).lower(),
-                     f"{nxt.title} at {nxt.when()}" if nxt else "none scheduled")
-            return True
-        except Exception as e:                       # network, HTTP, JSON: never break the loop
-            self.error = f"{type(e).__name__}: {e}"
+                ok += 1
+            except Exception as e:
+                errors.append(f"{type(e).__name__}: {e}")
+        self.error = "; ".join(errors) or None
+        if not ok:
             log.warning("news: calendar fetch failed (%s); keeping %d cached events", self.error, len(self.events))
             return False
+        self.events = parse_events(rows)
+        self.last_ok = time.time()
+        nxt = next_event(self.events, self.last_ok)
+        log.info("news: %d %s %s events loaded from %d/%d feeds; next %s", len(self.events),
+                 "/".join(config.NEWS_CURRENCIES), "/".join(config.NEWS_IMPACTS).lower(), ok, len(self.urls),
+                 f"{nxt.title} at {nxt.when()}" if nxt else "none scheduled")
+        if errors:
+            log.warning("news: some feeds failed: %s", self.error)
+        return True
 
     # -- queries -------------------------------------------------------------------
     def stale(self, now_utc: float | None = None) -> bool:

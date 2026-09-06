@@ -15,7 +15,8 @@ MT5 Terminal <──────────────────────
         ├─ position_manager.manage_positions()   breakeven then ATR trail on open bot positions
         ├─ reporting.maybe_heartbeat / maybe_daily_summary
         ├─ risk.breaker_reason()         pause entries on daily loss / loss streak
-        └─ strategy.SymbolTrader.step()  per symbol: position? session? cap? spread? -> signal -> order
+        ├─ news.NewsFilter               Forex Factory weekly JSON (USD High), UTC wall clock; refresh every 4 h, cache on failure
+        └─ strategy.SymbolTrader.step()  per symbol: position? session? news blackout? cap? spread? -> signal -> order
                  └─ candles.py  bull_pattern/bear_pattern per bar; config.CANDLE_MODE off / confirm (setup + pattern) / only
                  └─ technicals.py  ATR/BB/RSI + setup flags + candlestick patterns on M5, EMA200 on H1 (attach_trend uses last *closed* H1 bar)
         ├─ Bot._maybe_sync_history()     every 60 s: history.sync_deals (MT5 deals -> logs/history.db), equity snapshot,
@@ -33,6 +34,7 @@ backtest.py  standalone replay of strategy.generate_signal over MT5 history (sam
 
 ## Conventions
 - All clocks are MT5 server time (naive datetime). Daily windows are server-midnight epochs; deals are filtered in Python by `deal.time`.
+- News blackout times are compared in UTC against the real wall clock (releases are real-world moments); everything else is server time.
 - Every MT5 call that can return `None` is guarded. Symbols without a live tick (`tick.time == 0`) are skipped.
 - One entry attempt per closed candle per symbol (`SymbolTrader.last_signal_bar`), whether it fills or is rejected.
 - Pure logic lives in plain functions (`strategy.generate_signal`, `position_manager.next_stop`, `execution.lot_for_risk`, `risk.stats_from_deals`, `backtest.run_backtest`) so it is testable without a terminal.

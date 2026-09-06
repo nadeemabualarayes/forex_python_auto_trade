@@ -47,3 +47,9 @@ def plain_entry_rule(monkeypatch):
     monkeypatch.setattr(config, "CANDLE_MODE", "off")
     monkeypatch.setattr(config, "CANDLE_PATTERNS", None)
     monkeypatch.setattr(config, "CANDLE_LOOKBACK", 3)
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """Tests never fetch the economic calendar; test_news opts in with a fake fetcher."""
+    monkeypatch.setattr(config, "NEWS_FILTER_ENABLED", False)

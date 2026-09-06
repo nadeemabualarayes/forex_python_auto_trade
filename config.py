@@ -61,8 +61,8 @@ NEWS_BLOCK_AFTER_MIN = 15
 NEWS_REFRESH_MINUTES = 240              # feed re-fetch cadence (Forex Factory asks for low traffic)
 NEWS_STALE_HOURS = 72                   # cached calendar older than this counts as unavailable
 NEWS_BLOCK_WHEN_UNAVAILABLE = False     # True: stand aside when the calendar cannot be fetched
-NEWS_URLS = ("https://nfs.faireconomy.media/ff_calendar_thisweek.json",
-             "https://nfs.faireconomy.media/ff_calendar_nextweek.json")
+NEWS_URLS = ("https://nfs.faireconomy.media/ff_calendar_thisweek.json",)   # FF week starts Sunday, so the
+                                        # weekend copy already covers the coming week; nextweek.json is not always published
 
 # ── Trend filter (higher timeframe) ────────────────────────────────────────
 TREND_FILTER_ENABLED = True
