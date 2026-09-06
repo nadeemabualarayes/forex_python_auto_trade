@@ -1,6 +1,23 @@
 import os
 import MetaTrader5 as mt5
 
+
+def _load_dotenv(path: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")) -> None:
+    """Load KEY=VALUE lines from a local .env file (gitignored). Real environment variables win."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+    except FileNotFoundError:
+        pass
+
+
+_load_dotenv()
+
 # ── Symbols & timeframe ─────────────────────────────────────────────────────
 SYMBOLS = ["XAUUSD", "XAGUSD"]          # every symbol gets its own SymbolTrader
 TIMEFRAME = mt5.TIMEFRAME_M5            # signal timeframe
@@ -65,20 +82,18 @@ WEB_PORT = 8080
 WEB_RECENT_TRADES = 50                  # journal rows shown on the page
 
 # ── Telegram ───────────────────────────────────────────────────────────────
-# Preferred: set TELEGRAM_TOKEN / TELEGRAM_CHAT_ID as environment variables.
-# The literals below are only a fallback for local runs.
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8941980370:AAFUhhvISIJuQ4ls5J_1l3Acgup4UbFp994")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "1233013114")
+# Set TELEGRAM_TOKEN / TELEGRAM_CHAT_ID in the environment or in a local .env file
+# (see .env.example). Never put the literals here: config.py is committed.
+# An empty token disables Telegram alerts.
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 
 def spread_limit(symbol: str) -> int:
     return MAX_ALLOWED_SPREAD_POINTS.get(symbol, MAX_ALLOWED_SPREAD_POINTS["default"])
 
 
-#Name     : Name     : auto nadeem
-#Type     : Forex Hedged USD
-#Server   : MetaQuotes-Demo
-#Login    : 5055551748
-#Password : Gf*wQg6f
-#Investor : W_DcC8If
-#
+# -- GitHub Pages publisher (publisher.py) --
+PAGES_REMOTE = None                     # git remote URL for the gh-pages push; None -> this repo's origin
+PAGES_BRANCH = "gh-pages"
+PAGES_PUBLISH_SECONDS = 300             # minimum seconds between pushes

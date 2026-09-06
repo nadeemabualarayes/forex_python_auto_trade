@@ -8,6 +8,7 @@ Scenario (XAUUSD, Monday, server time): uptrend above the H1 EMA200.
   2. dip -> BUY -> keeps falling -> stop loss -> re-entry -> stop loss
      (2 losses in a row trips the circuit breaker)
   3. clock runs to 23:05 -> daily summary
+--trades N replaces the script with a seeded random multi-day path and stops after N closed trades.
 Each loop pass advances one M5 bar instead of sleeping.
 """
 import argparse
@@ -74,6 +75,40 @@ def build_scenario():
     m5 = _bars(closes, monday, 5, int(SPREAD * 100))
     h1_closes = [BASE - 200 + 190 * k / 599 for k in range(600)]
     h1 = _bars(h1_closes, monday - timedelta(hours=600), 60, int(SPREAD * 100))
+    return m5, h1, 120
+
+
+def build_random_scenario(days: int = 40, seed: int = 1):
+    """Seeded random walk over `days` consecutive weekdays: mean-reverting noise around a slow
+    drift plus occasional sharp spikes, so Bollinger touches with RSI extremes keep occurring in
+    both directions. H1 history is flat at BASE, so the EMA200 filter lets price pick the side."""
+    import random
+    rng = random.Random(seed)
+    per_day = 24 * 12
+    closes, level, prev, spike = [], BASE, BASE, 0
+    for _ in range(days * per_day + 120):
+        level += rng.gauss(0, 0.05)
+        if spike == 0 and rng.random() < 0.02:
+            spike = rng.choice([-1, 1]) * rng.randint(4, 8)     # sign = direction, |n| = bars left
+        step = rng.gauss(0, 0.5) + 0.03 * (level - prev)
+        if spike:
+            step += 1.4 * (1 if spike > 0 else -1)
+            spike -= 1 if spike > 0 else -1
+        prev = round(prev + step, 2)
+        closes.append(prev)
+
+    monday = datetime(2026, 9, 7, 0, 0)
+    m5 = []
+    day = monday
+    warm = _bars(closes[:120], monday - timedelta(minutes=600), 5, int(SPREAD * 100))
+    m5 += warm
+    for d in range(days):
+        while day.weekday() > 4:                                 # skip Saturday / Sunday
+            day += timedelta(days=1)
+        chunk = closes[120 + d * per_day: 120 + (d + 1) * per_day]
+        m5 += _bars(chunk, day, 5, int(SPREAD * 100))
+        day += timedelta(days=1)
+    h1 = _bars([BASE] * 600, monday - timedelta(hours=600), 60, int(SPREAD * 100))
     return m5, h1, 120
 
 
@@ -183,7 +218,10 @@ class FakeMT5:
 
 
 # -- Wiring ---------------------------------------------------------------------------
-def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join("logs", "sim")) -> dict:
+def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join("logs", "sim"),
+                   trades: int | None = None, seed: int = 1) -> dict:
+    """Scripted scenario by default; with `trades`, a random multi-day path that stops once
+    that many positions have closed (or the path runs out)."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import config
     config.LOG_DIR = log_dir
@@ -196,7 +234,7 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
     import journal, telegram_notifier, execution, risk, strategy, position_manager, reporting, main
     journal.setup_logging()
 
-    m5, h1, warmup = build_scenario()
+    m5, h1, warmup = build_random_scenario(seed=seed) if trades else build_scenario()
     fake = FakeMT5(m5, h1, config.MAGIC_NUMBER)
     fake.i = warmup
     for mod in (execution, risk, strategy, position_manager, reporting, main):
@@ -217,9 +255,14 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
 
     bot = main.Bot([SYMBOL])
     breaker_tripped = False
+    def closed():
+        return sum(1 for d in fake.deals if d.entry == _real_mt5.DEAL_ENTRY_OUT)
+
     while fake.i < len(m5) - 1:
         bot.tick()
         breaker_tripped = breaker_tripped or bot.breaker_alerted
+        if trades and closed() >= trades:
+            break
         fake.advance()
     bot.tick()
 
@@ -234,13 +277,19 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
 def main_cli():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--quiet", action="store_true", help="do not send Telegram messages")
+    ap.add_argument("--trades", type=int, help="random multi-day path; stop after this many closed trades")
+    ap.add_argument("--seed", type=int, default=1, help="random seed for --trades")
     args = ap.parse_args()
-    res = run_simulation(send_real_telegram=not args.quiet)
+    res = run_simulation(send_real_telegram=not args.quiet, trades=args.trades, seed=args.seed)
     print("\n== journal ==")
     for r in res["journal"]:
         print(f"{r['time']}  {r['event']:<9} {r['side']:<4} lot={r['lot']:<5} price={r['price']:<8} "
               f"sl={r['sl']:<8} tp={r['tp']:<8} pnl={r['pnl']:<6} {r['note']}")
-    print(f"\n{len(res['telegram'])} Telegram messages "
+    outs = [d for d in res["deals"] if d.entry == _real_mt5.DEAL_ENTRY_OUT]
+    wins = [d for d in outs if d.profit > 0]
+    print(f"\n== {len(outs)} closed trades: {len(wins)}W / {len(outs) - len(wins)}L, "
+          f"net ${sum(d.profit for d in outs):.2f} ==")
+    print(f"{len(res['telegram'])} Telegram messages "
           f"{'sent' if not args.quiet else 'printed'}; breaker tripped: {res['breaker_tripped']}")
     print(f"log: {os.path.join(res['log_dir'], 'bot.log')}")
 

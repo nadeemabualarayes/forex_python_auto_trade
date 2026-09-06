@@ -50,7 +50,7 @@ An automated execution engine linking **Python** with **MetaTrader 5 (MT5)**, de
 pip install -r requirements.txt
 ```
 
-3. Edit `config.py`: set `SYMBOLS` and the risk limits. Set `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as environment variables.
+3. Edit `config.py`: set `SYMBOLS` and the risk limits. Copy `.env.example` to `.env` and fill in `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` (or set them as environment variables; `.env` is gitignored and must never be committed).
 4. Start the bot:
 
 ```bash
@@ -77,6 +77,7 @@ The backtester uses the same signal, trend, session, sizing, and breaker code as
 ```bash
 python simulate.py            # sends SIMULATION-prefixed alerts to Telegram
 python simulate.py --quiet    # prints them instead
+python simulate.py --quiet --trades 20 --seed 1   # random multi-day path, stop after 20 closed trades
 ```
 
 Drives the real bot loop with a fake terminal and a scripted gold price path: a winning trade that walks through breakeven and trailing to take profit, two stop-outs that trip the circuit breaker, then the daily summary. Output goes to `logs/sim/` so the live journal stays clean.
