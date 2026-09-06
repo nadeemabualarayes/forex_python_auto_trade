@@ -473,10 +473,10 @@
     if (s.breaker) { b.textContent = "⛔ Circuit breaker active: " + s.breaker + " — entries paused until next server day"; b.classList.add("show"); }
     else b.classList.remove("show");
 
-    const n = $("news"), nw = s.news || {};
-    if (nw.blocked) { n.textContent = "📰 " + nw.blocked + " — no new entries " + (nw.window_minutes || [15, 15]).join("/") + " min around the release"; n.classList.add("show"); }
-    else if (nw.enabled && nw.next) { n.textContent = "📰 Next high-impact " + nw.next.currency + " release: " + nw.next.title + " at " + nw.next.time + " (in " + fmtUptime(Math.max(0, nw.next.minutes_until) * 60) + ")" + (nw.stale ? " · calendar stale" : ""); n.classList.add("show"); }
-    else n.classList.remove("show");
+    const newsEl = $("news"), nw = s.news || {};
+    if (nw.blocked) { newsEl.textContent = "📰 " + nw.blocked + " — no new entries " + (nw.window_minutes || [15, 15]).join("/") + " min around the release"; newsEl.classList.add("show"); }
+    else if (nw.enabled && nw.next) { newsEl.textContent = "📰 Next high-impact " + nw.next.currency + " release: " + nw.next.title + " at " + nw.next.time + " (in " + fmtUptime(Math.max(0, nw.next.minutes_until) * 60) + ")" + (nw.stale ? " · calendar stale" : ""); newsEl.classList.add("show"); }
+    else newsEl.classList.remove("show");
 
     // KPI strip
     if (acct) {
