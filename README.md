@@ -91,7 +91,9 @@ GitHub cannot host the bot: it needs a logged-in MetaTrader 5 desktop terminal o
 powershell -ExecutionPolicy Bypass -File .\install_task.ps1 -Start
 ```
 
-   This creates a Task Scheduler entry named **ForexBot** that runs `run_bot.cmd`, restarts every minute on failure, and has no execution time limit. Console output goes to `logs/console.log`. Remove it with `-Uninstall`. Set the `BOT_PYTHON` environment variable if `python` on your PATH is not the interpreter you want.
+   This creates a Task Scheduler entry named **ForexBot** that runs `run_bot.cmd`, restarts every minute on failure, and has no execution time limit. Console output goes to `logs/console.log`. Set the `BOT_PYTHON` environment variable if `python` on your PATH is not the interpreter you want.
+
+   Other switches: `-Restart` after you change the code, `-Stop` to stop the bot, `-Uninstall` to remove the task. Always use the script rather than Task Scheduler's own *End* button: ending the task only kills the launcher shell and leaves the bot's Python process running.
 
 2. Stop Windows from sleeping: **Settings > System > Power** and set *Screen* and *Sleep* to **Never** while plugged in.
 
@@ -100,6 +102,16 @@ powershell -ExecutionPolicy Bypass -File .\install_task.ps1 -Start
 4. Let MetaTrader 5 start with the bot: the bot launches the terminal itself on `mt5.initialize()`, so keep the terminal logged in with *Algo Trading* enabled and *Remember password* ticked.
 
 If the PC is off, so is the bot. For true 24/7 uptime use a Windows VPS instead; the same task script works there.
+
+---
+
+## Status page
+
+While the bot runs it serves a small dashboard from its own process, no extra packages needed. Open <http://127.0.0.1:8080/> on the machine running the bot.
+
+It shows day net P&L, open P&L, wins/losses, entries against the daily cap, loss streak against the breaker limit, an active circuit-breaker banner, what each symbol is waiting on, open positions, and the last 50 journal rows. It refreshes every 5 seconds from `/status.json`.
+
+Settings live in `config.py` under *Status page*: set `WEB_ENABLED = False` to turn it off, change `WEB_PORT` if 8080 is taken, and set `WEB_HOST = "0.0.0.0"` to reach it from your phone on the same Wi-Fi (then use the PC's LAN address). The page is read-only and has no login, so do not expose it to the internet.
 
 ---
 

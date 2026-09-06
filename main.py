@@ -6,23 +6,37 @@ import traceback
 import MetaTrader5 as mt5
 
 import config
-from execution import init_mt5
+from execution import init_mt5, bot_positions
 from journal import setup_logging, log
 from position_manager import manage_positions
 from reporting import Reporter
 from risk import ServerClock, get_daily_stats, breaker_reason
+from status import build_status
 from strategy import SymbolTrader
 from telegram_notifier import send_telegram
+from web import StatusServer
 
 
 class Bot:
-    def __init__(self, symbols):
+    def __init__(self, symbols, web: StatusServer | None = None):
         self.symbols = symbols
         self.traders = {s: SymbolTrader(s) for s in symbols}
         self.reporter = Reporter()
         self.clock = ServerClock()
+        self.web = web
+        self.started_at = time.monotonic()
         self.breaker_alerted = False
         self.no_quote_logged = False
+
+    def _publish(self, now, stats, breaker) -> None:
+        """Push a snapshot to the status page. Never allowed to break trading."""
+        if self.web is None:
+            return
+        try:
+            self.web.update(build_status(now, stats, bot_positions(), self.traders.values(), breaker,
+                                         self.symbols, self.started_at, time.monotonic()))
+        except Exception as e:
+            log.warning("status update failed: %s", e)
 
     def tick(self) -> float:
         """One pass. Returns how long to sleep before the next one."""
@@ -31,6 +45,7 @@ class Bot:
             if not self.no_quote_logged:
                 log.warning("no quotes for %s yet (market closed?)", self.symbols)
                 self.no_quote_logged = True
+            self._publish(None, None, None)
             return config.LOOP_SLEEP_SECONDS
         self.no_quote_logged = False
 
@@ -48,11 +63,13 @@ class Bot:
                 log.warning("BREAKER: %s", reason)
                 send_telegram(msg)
                 self.breaker_alerted = True
+            self._publish(now, stats, reason)
             return config.BREAKER_SLEEP_SECONDS
         self.breaker_alerted = False
 
         for trader in self.traders.values():
             trader.step(now, stats.entries)
+        self._publish(now, stats, None)
         return config.LOOP_SLEEP_SECONDS
 
 
@@ -70,7 +87,10 @@ def run() -> int:
              symbols, config.RISK_USD_PER_TRADE, config.MAX_TRADES_PER_DAY,
              config.TREND_FILTER_ENABLED, config.SESSION_FILTER_ENABLED)
     send_telegram(f"\U0001F680 <b>Bot started</b> on {', '.join(symbols)}")
-    bot = Bot(symbols)
+    web = StatusServer() if config.WEB_ENABLED else None
+    if web and not web.start():
+        web = None
+    bot = Bot(symbols, web)
 
     try:
         while True:
@@ -89,6 +109,8 @@ def run() -> int:
         log.info("STOP bot terminated manually")
         send_telegram("\U0001F6D1 <b>Bot stopped</b> manually")
     finally:
+        if web:
+            web.stop()
         mt5.shutdown()
     return 0
 

@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forex Bot Status</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f4f2;
+    --surface: #fcfcfb;
+    --border: #e2e1dc;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --text-3: #8a8983;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --critical: #d03b3b;
+    --accent: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111110;
+      --surface: #1a1a19;
+      --border: #2c2c2a;
+      --text: #ffffff;
+      --text-2: #c3c2b7;
+      --text-3: #8a8983;
+      --accent: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline;
+    padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  header .meta { color: var(--text-2); font-size: 13px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px;
+          font-size: 12px; font-weight: 600; border: 1px solid var(--border); }
+  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+  .pill.good::before { background: var(--good); }
+  .pill.warn::before { background: var(--warning); }
+  .pill.bad::before  { background: var(--critical); }
+  main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; display: grid; gap: 20px; }
+  .banner { display: none; padding: 10px 14px; border-radius: 8px; font-weight: 600;
+            border: 1px solid var(--critical); color: var(--critical); background: color-mix(in srgb, var(--critical) 8%, var(--surface)); }
+  .banner.show { display: block; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .tile .label { color: var(--text-2); font-size: 12px; }
+  .tile .value { font-size: 22px; font-weight: 600; margin-top: 2px; }
+  .tile.hero .value { font-size: 48px; line-height: 1.1; }
+  .tile .sub { color: var(--text-3); font-size: 12px; margin-top: 2px; }
+  .pos { color: var(--good); } .neg { color: var(--critical); }
+  section h2 { font-size: 13px; font-weight: 600; color: var(--text-2); text-transform: uppercase;
+               letter-spacing: .04em; margin: 0 0 8px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { font-size: 12px; color: var(--text-2); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; }
+  .empty { padding: 14px; color: var(--text-3); }
+  .symbols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .sym { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .sym .name { font-weight: 600; }
+  .sym .state { color: var(--text-2); margin-top: 4px; }
+  .sym .bar { color: var(--text-3); font-size: 12px; margin-top: 2px; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-2); }
+  footer { color: var(--text-3); font-size: 12px; padding: 0 24px 24px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Forex bot</h1>
+  <span id="conn" class="pill">connecting</span>
+  <span id="market" class="pill">market</span>
+  <span class="meta">Server time <b id="server-time">—</b></span>
+  <span class="meta">Uptime <b id="uptime">—</b></span>
+  <span class="meta" id="symbols"></span>
+</header>
+
+<main>
+  <div id="breaker" class="banner"></div>
+
+  <div class="tiles">
+    <div class="tile hero">
+      <div class="label">Day net P&amp;L</div>
+      <div class="value" id="net">—</div>
+      <div class="sub" id="net-sub">closed trades, server day</div>
+    </div>
+    <div class="tile">
+      <div class="label">Open P&amp;L</div>
+      <div class="value" id="open-pnl">—</div>
+      <div class="sub" id="open-count">no positions</div>
+    </div>
+    <div class="tile">
+      <div class="label">Wins / losses</div>
+      <div class="value" id="wl">—</div>
+      <div class="sub" id="winrate"></div>
+    </div>
+    <div class="tile">
+      <div class="label">Entries today</div>
+      <div class="value" id="entries">—</div>
+      <div class="sub">daily cap</div>
+    </div>
+    <div class="tile">
+      <div class="label">Loss streak</div>
+      <div class="value" id="streak">—</div>
+      <div class="sub">breaker limit</div>
+    </div>
+    <div class="tile">
+      <div class="label">Risk per trade</div>
+      <div class="value" id="risk">—</div>
+      <div class="sub" id="filters"></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Symbols</h2>
+    <div id="sym-cards" class="symbols"></div>
+  </section>
+
+  <section>
+    <h2>Open positions</h2>
+    <div class="card">
+      <table id="positions">
+        <thead><tr>
+          <th>Symbol</th><th>Side</th><th class="num">Lots</th><th class="num">Entry</th>
+          <th class="num">SL</th><th class="num">TP</th><th class="num">P&amp;L</th><th class="num">Ticket</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="positions-empty">No open positions</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recent journal</h2>
+    <div class="card">
+      <table id="trades">
+        <thead><tr>
+          <th>Time</th><th>Event</th><th>Symbol</th><th>Side</th><th class="num">Lots</th>
+          <th class="num">Price</th><th class="num">SL</th><th class="num">TP</th><th class="num">P&amp;L</th><th>Note</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="trades-empty">No journal entries yet</div>
+    </div>
+  </section>
+</main>
+<footer>Updated <span id="generated">—</span> · refreshes every 5 s · served by the bot process</footer>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const money = v => (v >= 0 ? "+" : "−") + "$" + Math.abs(v).toFixed(2);
+  const signClass = v => v > 0 ? "pos" : v < 0 ? "neg" : "";
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const fmtUptime = s => {
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    return (d ? d + "d " : "") + (h ? h + "h " : "") + m + "m";
+  };
+
+  function setPill(el, text, cls) {
+    el.textContent = text;
+    el.className = "pill" + (cls ? " " + cls : "");
+  }
+
+  function render(s) {
+    const day = s.day || {};
+    setPill($("market"), s.market_open ? "market open" : "no quotes / market closed", s.market_open ? "good" : "");
+    $("server-time").textContent = s.server_time || "—";
+    $("uptime").textContent = fmtUptime(s.uptime_seconds || 0);
+    $("symbols").textContent = (s.symbols || []).join(" · ");
+
+    const b = $("breaker");
+    if (s.breaker) { b.textContent = "⛔ Circuit breaker active: " + s.breaker + " — entries paused until next server day"; b.classList.add("show"); }
+    else b.classList.remove("show");
+
+    const net = day.net_pnl || 0;
+    $("net").textContent = money(net); $("net").className = "value " + signClass(net);
+    $("net-sub").textContent = "closed trades · limit −$" + (day.max_daily_loss ?? "—");
+
+    const op = s.open_pnl || 0;
+    $("open-pnl").textContent = money(op); $("open-pnl").className = "value " + signClass(op);
+    const n = (s.positions || []).length;
+    $("open-count").textContent = n ? n + (n === 1 ? " position" : " positions") : "no positions";
+
+    $("wl").textContent = (day.wins ?? 0) + " / " + (day.losses ?? 0);
+    $("winrate").textContent = (day.wins || day.losses) ? "win rate " + day.win_rate + "%" : "no closed trades yet";
+    $("entries").textContent = (day.entries ?? 0) + " / " + (day.max_entries ?? "—");
+    $("streak").textContent = (day.consecutive_losses ?? 0) + " / " + (day.max_consecutive_losses ?? "—");
+    $("streak").className = "value " + ((day.consecutive_losses || 0) >= (day.max_consecutive_losses || 99) ? "neg" : "");
+
+    const st = s.settings || {};
+    $("risk").textContent = st.risk_usd_per_trade != null ? "$" + st.risk_usd_per_trade : "—";
+    $("filters").textContent = ["trend " + (st.trend_filter ? "on" : "off"),
+                                "session " + (st.session_filter ? "on" : "off"),
+                                "trail " + (st.manage_positions ? "on" : "off")].join(" · ");
+
+    $("sym-cards").innerHTML = (s.traders || []).map(t => `
+      <div class="sym">
+        <div class="name">${esc(t.symbol)} ${t.state === "watching" ? '<span class="tag">watching</span>' : ""}</div>
+        <div class="state">${esc(t.state)}</div>
+        <div class="bar">${t.last_signal_bar ? "last signal bar " + esc(t.last_signal_bar) : "no signal yet"}</div>
+      </div>`).join("") || '<div class="empty">No symbols</div>';
+
+    const pos = s.positions || [];
+    $("positions").querySelector("tbody").innerHTML = pos.map(p => `
+      <tr><td>${esc(p.symbol)}</td><td>${esc(p.side)}</td><td class="num">${p.volume}</td>
+      <td class="num">${p.price_open}</td><td class="num">${p.sl || "—"}</td><td class="num">${p.tp || "—"}</td>
+      <td class="num ${signClass(p.profit)}">${money(p.profit)}</td><td class="num">${p.ticket}</td></tr>`).join("");
+    $("positions-empty").style.display = pos.length ? "none" : "";
+
+    const tr = s.trades || [];
+    $("trades").querySelector("tbody").innerHTML = tr.map(r => {
+      const pnl = r.pnl === "" || r.pnl == null ? null : Number(r.pnl);
+      return `<tr><td>${esc(r.time)}</td><td>${esc(r.event)}</td><td>${esc(r.symbol)}</td><td>${esc(r.side)}</td>
+        <td class="num">${esc(r.lot)}</td><td class="num">${esc(r.price)}</td><td class="num">${esc(r.sl)}</td>
+        <td class="num">${esc(r.tp)}</td><td class="num ${pnl == null ? "" : signClass(pnl)}">${pnl == null ? "" : money(pnl)}</td>
+        <td>${esc(r.note)}</td></tr>`;
+    }).join("");
+    $("trades-empty").style.display = tr.length ? "none" : "";
+
+    $("generated").textContent = s.generated_at || "—";
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch("/status.json", { cache: "no-store" });
+      if (!r.ok) throw new Error(r.status);
+      render(await r.json());
+      setPill($("conn"), "bot online", "good");
+    } catch (e) {
+      setPill($("conn"), "bot unreachable", "bad");
+    }
+  }
+  poll();
+  setInterval(poll, 5000);
+})();
+</script>
+</body>
+</html>

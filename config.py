@@ -58,6 +58,12 @@ LOOP_SLEEP_SECONDS = 10
 ERROR_SLEEP_SECONDS = 30
 BREAKER_SLEEP_SECONDS = 300             # re-check breaker every 5 min while paused
 
+# ── Status page ─────────────────────────────────────────────────────────────
+WEB_ENABLED = True
+WEB_HOST = "127.0.0.1"                  # "0.0.0.0" to reach it from your phone on the same Wi-Fi
+WEB_PORT = 8080
+WEB_RECENT_TRADES = 50                  # journal rows shown on the page
+
 # ── Telegram ───────────────────────────────────────────────────────────────
 # Preferred: set TELEGRAM_TOKEN / TELEGRAM_CHAT_ID as environment variables.
 # The literals below are only a fallback for local runs.

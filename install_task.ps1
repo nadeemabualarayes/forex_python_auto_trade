@@ -12,19 +12,28 @@
   logon so the task fires after a reboot. See README.md, section "Running unattended".
 
 .PARAMETER Uninstall
-  Remove the task instead of creating it.
+  Stop the bot and remove the task.
 .PARAMETER Start
-  Start the task right away after registering it.
+  Start the task right away (after registering it if needed).
+.PARAMETER Stop
+  Stop the task AND the bot's python process. Stopping the task alone only kills the
+  launcher shell and leaves the bot running, so always use this switch.
+.PARAMETER Restart
+  Stop, then start. Use after changing the bot's code.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\install_task.ps1 -Start
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File .\install_task.ps1 -Restart
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\install_task.ps1 -Uninstall
 #>
 [CmdletBinding()]
 param(
     [switch]$Uninstall,
-    [switch]$Start
+    [switch]$Start,
+    [switch]$Stop,
+    [switch]$Restart
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,14 +43,44 @@ $Launcher   = Join-Path $ProjectDir "run_bot.cmd"
 
 $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 
+function Stop-Bot {
+    # Stop-ScheduledTask ends cmd.exe but not its python child, so kill the bot explicitly:
+    # any python whose command line is "main.py" and whose working folder is this project.
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $procs = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+        Where-Object { $_.CommandLine -match '(^|\s|")main\.py("|\s|$)' }
+    foreach ($p in $procs) {
+        Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+        Write-Host "  stopped bot process $($p.ProcessId)"
+    }
+    if (-not $procs) { Write-Host "  no bot process was running" }
+}
+
 if ($Uninstall) {
     if ($null -eq $existing) {
         Write-Host "Task '$TaskName' is not registered; nothing to do."
         return
     }
-    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    Stop-Bot
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
     Write-Host "Task '$TaskName' removed."
+    return
+}
+
+if ($Stop -or $Restart) {
+    if ($null -eq $existing) { throw "Task '$TaskName' is not registered; run this script without switches first." }
+    Write-Host "Stopping bot..."
+    Stop-Bot
+    if (-not $Restart) { return }
+    Start-Sleep -Seconds 2
+    Start-ScheduledTask -TaskName $TaskName
+    Write-Host "Task '$TaskName' started."
+    return
+}
+
+if ($Start -and $null -ne $existing) {
+    Start-ScheduledTask -TaskName $TaskName
+    Write-Host "Task '$TaskName' started."
     return
 }
 
@@ -65,7 +104,7 @@ $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -Ru
 
 if ($null -ne $existing) {
     Write-Host "Task '$TaskName' already exists; replacing it."
-    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    Stop-Bot
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
 }
 
