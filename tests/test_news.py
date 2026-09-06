@@ -121,3 +121,29 @@ class TestFilter:
         assert nf.refresh() is True
         assert [e.title for e in nf.events] == ["NFP"]
         assert "404" in nf.error and nf.last_ok is not None
+
+    def test_cache_round_trip_and_retry_interval(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config, "NEWS_REFRESH_MINUTES", 240)
+        monkeypatch.setattr(config, "NEWS_RETRY_MINUTES", 15)
+        cache = str(tmp_path / "news_cache.json")
+        rows = [_row("NFP", "2026-09-04T08:30:00-04:00")]
+        state = {"fail": False, "n": 0}
+
+        def fetch(url):
+            state["n"] += 1
+            if state["fail"]:
+                raise RuntimeError("429")
+            return rows
+
+        nf = NewsFilter(urls=("u",), fetch=fetch, cache_path=cache)
+        assert nf.maybe_refresh(now_mono=0.0) is True and nf.events
+        # a fresh instance starts from the cache without touching the network
+        nf2 = NewsFilter(urls=("u",), fetch=fetch, cache_path=cache)
+        assert [e.title for e in nf2.events] == ["NFP"] and nf2.last_ok == nf.last_ok
+        assert state["n"] == 1
+        # after a failure the next attempt comes after the retry interval, not the full refresh interval
+        state["fail"] = True
+        assert nf2.maybe_refresh(now_mono=0.0) is True and nf2.error
+        assert nf2.maybe_refresh(now_mono=10 * 60) is False
+        assert nf2.maybe_refresh(now_mono=16 * 60) is True
+        assert [e.title for e in nf2.events] == ["NFP"]                  # cache survives the failures

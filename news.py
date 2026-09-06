@@ -10,6 +10,8 @@ it is older than NEWS_STALE_HOURS, after which NEWS_BLOCK_WHEN_UNAVAILABLE decid
 bot trades blind or stands aside. Pure helpers (parse_events, blocking_event, next_event) are
 testable without network access.
 """
+import json
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -83,13 +85,38 @@ def _http_fetch(url: str):
 
 
 class NewsFilter:
-    def __init__(self, urls=None, fetch=None):
+    def __init__(self, urls=None, fetch=None, cache_path: str | None = None):
         self.urls = tuple(urls) if urls is not None else config.NEWS_URLS
         self.fetch = fetch or _http_fetch
+        self.cache_path = cache_path if cache_path is not None else os.path.join(config.LOG_DIR, config.NEWS_CACHE_FILE)
         self.events: list = []
         self.last_attempt: float | None = None      # time.monotonic()
         self.last_ok: float | None = None           # time.time()
         self.error: str | None = None
+        self._load_cache()
+
+    # -- disk cache (survives restarts, spares the feed) ------------------------------
+    def _load_cache(self) -> None:
+        try:
+            with open(self.cache_path, encoding="utf-8") as f:
+                data = json.load(f)
+            self.events = parse_events(data.get("rows", []))
+            self.last_ok = float(data.get("fetched", 0)) or None
+            if self.last_ok:
+                log.info("news: %d cached events from %s", len(self.events),
+                         datetime.fromtimestamp(self.last_ok, timezone.utc).strftime("%Y-%m-%d %H:%M UTC"))
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            log.warning("news: ignoring unreadable cache %s (%s)", self.cache_path, e)
+
+    def _save_cache(self, rows) -> None:
+        try:
+            os.makedirs(os.path.dirname(self.cache_path) or ".", exist_ok=True)
+            with open(self.cache_path, "w", encoding="utf-8") as f:
+                json.dump({"fetched": self.last_ok, "rows": rows}, f)
+        except Exception as e:
+            log.warning("news: could not write cache %s (%s)", self.cache_path, e)
 
     # -- refresh -------------------------------------------------------------------
     def maybe_refresh(self, now_mono: float | None = None) -> bool:
@@ -97,7 +124,8 @@ class NewsFilter:
         if not config.NEWS_FILTER_ENABLED:
             return False
         now = time.monotonic() if now_mono is None else now_mono
-        if self.last_attempt is not None and now - self.last_attempt < config.NEWS_REFRESH_MINUTES * 60:
+        wait = (config.NEWS_RETRY_MINUTES if self.error else config.NEWS_REFRESH_MINUTES) * 60
+        if self.last_attempt is not None and now - self.last_attempt < wait:
             return False
         self.last_attempt = now
         self.refresh()
@@ -119,6 +147,7 @@ class NewsFilter:
             return False
         self.events = parse_events(rows)
         self.last_ok = time.time()
+        self._save_cache(rows)
         nxt = next_event(self.events, self.last_ok)
         log.info("news: %d %s %s events loaded from %d/%d feeds; next %s", len(self.events),
                  "/".join(config.NEWS_CURRENCIES), "/".join(config.NEWS_IMPACTS).lower(), ok, len(self.urls),
