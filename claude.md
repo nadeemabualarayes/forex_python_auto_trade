@@ -37,7 +37,7 @@ backtest.py  standalone replay of strategy.generate_signal over MT5 history (sam
 - News blackout times are compared in UTC against the real wall clock (releases are real-world moments); everything else is server time.
 - Every MT5 call that can return `None` is guarded. Symbols without a live tick (`tick.time == 0`) are skipped.
 - One entry attempt per closed candle per symbol (`SymbolTrader.last_signal_bar`), whether it fills or is rejected.
-- Pure logic lives in plain functions (`strategy.generate_signal`, `position_manager.next_stop`, `execution.lot_for_risk`, `risk.stats_from_deals`, `backtest.run_backtest`) so it is testable without a terminal.
+- Pure logic lives in plain functions (`strategy.generate_signal`, `position_manager.next_stop`, `execution.lot_for_risk`, `execution.trading_blockers`, `risk.stats_from_deals`, `backtest.run_backtest`) so it is testable without a terminal.
 
 ## Commands
 - Run bot: `python main.py`
