@@ -25,8 +25,8 @@ MAGIC_NUMBER = 998877
 
 # ── Risk (account-wide) ────────────────────────────────────────────────────
 RISK_USD_PER_TRADE = 5.0                # max loss at SL per trade, account currency
-MAX_DAILY_LOSS_USD = 15.0               # net daily loss -> pause until next server day
-MAX_CONSECUTIVE_LOSSES = 2              # closed losers in a row -> pause
+MAX_DAILY_LOSS_USD = 30.0               # net daily loss -> pause until next server day (relaxed for the demo phase, 2026-09-06)
+MAX_CONSECUTIVE_LOSSES = 6              # closed losers in a row -> pause (relaxed for the demo phase, 2026-09-06)
 MAX_TRADES_PER_DAY = 6                  # entries per server day across all symbols
 MAX_ALLOWED_SPREAD_POINTS = {           # per-symbol spread cap in points
     "XAUUSD": 35,
