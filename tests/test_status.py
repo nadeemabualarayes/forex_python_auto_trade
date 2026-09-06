@@ -68,3 +68,21 @@ def test_recent_trades_newest_first_and_capped(tmp_path):
 
 def test_recent_trades_missing_file(tmp_path):
     assert recent_trades(str(tmp_path / "nope.csv"), 10) == []
+
+
+def test_build_status_embeds_account_analytics_history():
+    import json
+    s = build_status(now=None, stats=None, positions=[], traders=[], breaker=None, symbols=[],
+                     started_at=0.0, now_mono=0.0,
+                     account={"balance": 1000.0, "equity": 1001.5, "currency": "USD"},
+                     analytics={"summary": {"trades": 1}}, history=[{"net": 1.5}])
+    assert s["account"]["equity"] == 1001.5
+    assert s["analytics"]["summary"]["trades"] == 1
+    assert s["history"] == [{"net": 1.5}]
+    json.dumps(s)
+
+
+def test_build_status_defaults_without_history():
+    s = build_status(now=None, stats=None, positions=[], traders=[], breaker=None, symbols=[],
+                     started_at=0.0, now_mono=0.0)
+    assert s["account"] is None and s["analytics"] is None and s["history"] == []

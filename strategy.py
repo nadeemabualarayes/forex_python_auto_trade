@@ -20,8 +20,33 @@ def in_session(server_dt: datetime) -> bool:
     return config.SESSION_START_HOUR <= server_dt.hour < config.SESSION_END_HOUR
 
 
+def _pattern(bar, side: str) -> str:
+    """Name of the allowed reversal pattern on this bar for `side`, or ""."""
+    name = bar.get("bull_pattern" if side == "BUY" else "bear_pattern") or ""
+    if config.CANDLE_PATTERNS is not None and name not in config.CANDLE_PATTERNS:
+        return ""
+    return name
+
+
 def raw_signal(bar) -> str | None:
-    """Mean-reversion rule on one closed bar: BB touch + RSI extreme."""
+    """Entry rule on one closed bar, per config.CANDLE_MODE:
+    off      Bollinger touch + RSI extreme on this bar
+    confirm  a touch+RSI setup within the last CANDLE_LOOKBACK bars AND a reversal candlestick on this bar
+    only     a reversal candlestick with RSI on the pullback side of CANDLE_ONLY_RSI (trend filter picks the side)
+    """
+    mode = config.CANDLE_MODE
+    if mode == "confirm":
+        if bar.get("buy_setup_recent") and _pattern(bar, "BUY"):
+            return "BUY"
+        if bar.get("sell_setup_recent") and _pattern(bar, "SELL"):
+            return "SELL"
+        return None
+    if mode == "only":
+        if bar["rsi"] < config.CANDLE_ONLY_RSI and _pattern(bar, "BUY"):
+            return "BUY"
+        if bar["rsi"] > 100 - config.CANDLE_ONLY_RSI and _pattern(bar, "SELL"):
+            return "SELL"
+        return None
     if bar["close"] <= bar["lower_band"] and bar["rsi"] < config.RSI_OVERSOLD:
         return "BUY"
     if bar["close"] >= bar["upper_band"] and bar["rsi"] > config.RSI_OVERBOUGHT:
@@ -130,7 +155,7 @@ class SymbolTrader:
             log.info("[%s] SKIP %s on %s: no lot fits risk budget", self.symbol, signal, last["time"])
             record_trade("SKIP", self.symbol, signal, note="no lot fits risk budget")
             return
-        log.info("[%s] SIGNAL %s bar=%s close=%.5g rsi=%.1f atr=%.5g ema=%.5g",
+        log.info("[%s] SIGNAL %s bar=%s close=%.5g rsi=%.1f atr=%.5g ema=%.5g pattern=%s",
                  self.symbol, signal, last["time"], last["close"], last["rsi"], last["atr"],
-                 last.get("trend_ema", float("nan")))
+                 last.get("trend_ema", float("nan")), _pattern(last, signal) or "-")
         send_market_order(signal, self.symbol, lot, lv.entry, lv.sl, lv.tp)

@@ -45,6 +45,13 @@ SL_ATR_MULTIPLIER = 1.5
 TP_ATR_MULTIPLIER = 3.0
 RATES_LOOKBACK = 120                    # bars fetched on the signal timeframe
 
+# ── Candlestick patterns (candles.py) ─────────────────────────────────────
+CANDLE_MODE = "off"                     # "off": BB+RSI only | "confirm": BB+RSI setup within CANDLE_LOOKBACK bars
+                                        # AND a reversal pattern on the closed bar | "only": pattern + RSI pullback
+CANDLE_LOOKBACK = 3                     # confirm mode: bars a BB+RSI setup stays valid
+CANDLE_PATTERNS = None                  # None = every pattern, or a tuple of names from candles.BULL/BEAR_PATTERNS
+CANDLE_ONLY_RSI = 50                    # only mode: buy patterns need rsi < this, sell patterns rsi > 100 - this
+
 # ── Trend filter (higher timeframe) ────────────────────────────────────────
 TREND_FILTER_ENABLED = True
 TREND_TIMEFRAME = mt5.TIMEFRAME_H1
@@ -80,6 +87,13 @@ WEB_ENABLED = True
 WEB_HOST = "127.0.0.1"                  # "0.0.0.0" to reach it from your phone on the same Wi-Fi
 WEB_PORT = 8080
 WEB_RECENT_TRADES = 50                  # journal rows shown on the page
+
+# ── Trade history & analytics ───────────────────────────────────────────────
+HISTORY_ENABLED = True
+HISTORY_DB = "history.db"               # file name inside LOG_DIR
+HISTORY_SYNC_SECONDS = 60               # deal sync + equity snapshot cadence
+HISTORY_INCLUDE_ALL_DEALS = False       # True: every deal on the account, not only this bot's
+HISTORY_MAX_TRADES = 500                # closed trades embedded in the page snapshot
 
 # ── Telegram ───────────────────────────────────────────────────────────────
 # Set TELEGRAM_TOKEN / TELEGRAM_CHAT_ID in the environment or in a local .env file

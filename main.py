@@ -1,4 +1,5 @@
 """Orchestrator: risk check -> manage positions -> per-symbol signals -> reporting."""
+import calendar
 import sys
 import time
 import traceback
@@ -6,7 +7,9 @@ import traceback
 import MetaTrader5 as mt5
 
 import config
+from analytics import pair_trades, build_analytics, trade_dicts
 from execution import init_mt5, bot_positions
+from history import TradeStore, sync_deals, snapshot_equity
 from journal import setup_logging, log
 from position_manager import manage_positions
 from reporting import Reporter
@@ -26,9 +29,40 @@ class Bot:
         self.clock = ServerClock()
         self.web = web
         self.pages = pages
+        self.store = TradeStore() if config.HISTORY_ENABLED else None
+        self.last_sync: float | None = None
+        self.account: dict | None = None
+        self.analytics: dict | None = None
+        self.history: list = []
         self.started_at = time.monotonic()
         self.breaker_alerted = False
         self.no_quote_logged = False
+
+    def _maybe_sync_history(self, now) -> None:
+        """Every HISTORY_SYNC_SECONDS: pull deals from MT5, snapshot equity, recompute the
+        cached analytics. Runs with or without quotes so equity keeps recording on weekends."""
+        if self.store is None:
+            return
+        mono = time.monotonic()
+        if self.last_sync is not None and mono - self.last_sync < config.HISTORY_SYNC_SECONDS:
+            return
+        self.last_sync = mono
+        try:
+            n = sync_deals(self.store, config.MAGIC_NUMBER, config.HISTORY_INCLUDE_ALL_DEALS)
+            epoch = calendar.timegm(now.timetuple()) if now else int(time.time())
+            open_pnl = sum(p.profit for p in bot_positions())
+            self.account = snapshot_equity(self.store, open_pnl=open_pnl, now_epoch=epoch)
+            trades = pair_trades(self.store.deals())
+            start_balance = None
+            if self.account:
+                start_balance = round(self.account["balance"] - sum(t.net for t in trades), 2)
+            snapshots = self.store.equity_series(since=epoch - 30 * 86400, step=3600)
+            self.analytics = build_analytics(trades, start_balance, snapshots)
+            self.history = trade_dicts(trades, config.HISTORY_MAX_TRADES)
+            if n:
+                log.info("history: synced %d deals, %d closed trades on record", n, len(trades))
+        except Exception as e:
+            log.warning("history sync failed: %s", e)
 
     def _publish(self, now, stats, breaker) -> None:
         """Push a snapshot to the status page and (on its interval) to GitHub Pages.
@@ -37,7 +71,8 @@ class Bot:
             return
         try:
             snap = build_status(now, stats, bot_positions(), self.traders.values(), breaker,
-                                self.symbols, self.started_at, time.monotonic())
+                                self.symbols, self.started_at, time.monotonic(),
+                                account=self.account, analytics=self.analytics, history=self.history)
             if self.web is not None:
                 self.web.update(snap)
             if self.pages is not None:
@@ -48,6 +83,7 @@ class Bot:
     def tick(self) -> float:
         """One pass. Returns how long to sleep before the next one."""
         now = self.clock.now(self.symbols)
+        self._maybe_sync_history(now)
         if now is None:
             if not self.no_quote_logged:
                 log.warning("no quotes for %s yet (market closed?)", self.symbols)
@@ -124,6 +160,8 @@ def run() -> int:
             pages.join(10)
         if web:
             web.stop()
+        if bot.store:
+            bot.store.close()
         mt5.shutdown()
     return 0
 

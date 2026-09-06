@@ -17,10 +17,13 @@ MT5 Terminal <──────────────────────
         ├─ risk.breaker_reason()         pause entries on daily loss / loss streak
         └─ strategy.SymbolTrader.step()  per symbol: position? session? cap? spread? -> signal -> order
                  └─ technicals.py  ATR/BB/RSI on M5, EMA200 on H1 (attach_trend uses last *closed* H1 bar)
-        ├─ Bot._publish()                status.build_status -> web.StatusServer (http://127.0.0.1:8080, stdlib thread)
+        ├─ Bot._maybe_sync_history()     every 60 s: history.sync_deals (MT5 deals -> logs/history.db), equity snapshot,
+        │                                analytics.pair_trades/build_analytics cached on the Bot
+        ├─ Bot._publish()                status.build_status (+account/analytics/history) -> web.StatusServer (http://127.0.0.1:8080)
+        │                                and publisher.PagesPublisher (force-push gh-pages every 5 min)
         journal.py   logs/bot.log (rotating) + logs/trades.csv (ENTRY/EXIT/SL_MOVE/REJECTED/SKIP)
         telegram_notifier.py
-        web/index.html  dashboard polling /status.json every 5 s
+        web/index.html  dashboard (Chart.js, KPI tiles, trade history) polling status.json every 5 s
 run_bot.cmd + install_task.ps1   Task Scheduler "ForexBot": start at logon, restart on non-zero exit (-Restart / -Stop / -Uninstall)
 simulate.py  dry run: real Bot loop + FakeMT5 + scripted price path (logs/sim/, Telegram prefixed SIMULATION)
 backtest.py  standalone replay of strategy.generate_signal over MT5 history (same filters/sizing/breakers/trailing)

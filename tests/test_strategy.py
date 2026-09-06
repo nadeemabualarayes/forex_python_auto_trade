@@ -78,3 +78,41 @@ class TestLevels:
         lv = build_levels("SELL", ask=100.0, bid=99.9, atr=2.0)
         assert lv.entry == 99.9
         assert lv.sl > lv.entry > lv.tp
+
+
+class TestCandleModes:
+    def test_confirm_needs_setup_and_pattern(self, monkeypatch):
+        monkeypatch.setattr(config, "CANDLE_MODE", "confirm")
+        b = bar(95.0, rsi=40)                       # no touch on this bar
+        b["buy_setup_recent"], b["bull_pattern"] = True, "hammer"
+        assert raw_signal(b) == "BUY"
+        b["bull_pattern"] = ""
+        assert raw_signal(b) is None
+        b["bull_pattern"], b["buy_setup_recent"] = "hammer", False
+        assert raw_signal(b) is None
+
+    def test_confirm_respects_pattern_whitelist(self, monkeypatch):
+        monkeypatch.setattr(config, "CANDLE_MODE", "confirm")
+        monkeypatch.setattr(config, "CANDLE_PATTERNS", ("bullish_engulfing",))
+        b = bar(95.0, rsi=40)
+        b["sell_setup_recent"], b["bear_pattern"] = True, "shooting_star"
+        assert raw_signal(b) is None
+        b["bear_pattern"] = "bearish_engulfing"
+        assert raw_signal(b) is None               # not whitelisted for SELL either
+        monkeypatch.setattr(config, "CANDLE_PATTERNS", ("bearish_engulfing",))
+        assert raw_signal(b) == "SELL"
+
+    def test_only_mode_uses_rsi_side(self, monkeypatch):
+        monkeypatch.setattr(config, "CANDLE_MODE", "only")
+        b = bar(95.0, rsi=40)
+        b["bull_pattern"] = "morning_star"
+        assert raw_signal(b) == "BUY"
+        b["rsi"] = 60
+        assert raw_signal(b) is None
+        b["bear_pattern"] = "evening_star"
+        assert raw_signal(b) == "SELL"
+
+    def test_off_mode_ignores_patterns(self):
+        b = bar(95.0, rsi=40)
+        b["buy_setup_recent"], b["bull_pattern"] = True, "hammer"
+        assert raw_signal(b) is None

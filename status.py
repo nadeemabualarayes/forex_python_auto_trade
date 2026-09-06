@@ -13,7 +13,8 @@ def _side(ptype) -> str:
 
 
 def build_status(now: datetime | None, stats, positions, traders, breaker, symbols,
-                 started_at: float, now_mono: float) -> dict:
+                 started_at: float, now_mono: float, account: dict | None = None,
+                 analytics: dict | None = None, history: list | None = None) -> dict:
     """JSON-serialisable snapshot of one tick.
 
     now=None means no live quote (market closed); stats is then ignored."""
@@ -49,6 +50,9 @@ def build_status(now: datetime | None, stats, positions, traders, breaker, symbo
         "positions": pos,
         "open_pnl": round(sum(p["profit"] for p in pos), 2),
         "traders": trd,
+        "account": account,
+        "analytics": analytics,
+        "history": history or [],
         "settings": {
             "risk_usd_per_trade": config.RISK_USD_PER_TRADE,
             "trend_filter": config.TREND_FILTER_ENABLED,

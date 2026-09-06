@@ -1,5 +1,6 @@
 import pandas as pd
 import config
+from candles import add_patterns
 
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -24,6 +25,15 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     rs = gain / (loss + 1e-9)
     df['rsi'] = 100 - (100 / (1 + rs))
 
+    # 4. Mean-reversion setup flags and how recently one occurred (for candlestick confirmation)
+    df['buy_setup'] = (df['close'] <= df['lower_band']) & (df['rsi'] < config.RSI_OVERSOLD)
+    df['sell_setup'] = (df['close'] >= df['upper_band']) & (df['rsi'] > config.RSI_OVERBOUGHT)
+    look = max(1, config.CANDLE_LOOKBACK)
+    df['buy_setup_recent'] = df['buy_setup'].rolling(look, min_periods=1).max().astype(bool)
+    df['sell_setup_recent'] = df['sell_setup'].rolling(look, min_periods=1).max().astype(bool)
+
+    # 5. Candlestick patterns
+    df = add_patterns(df)
     return df
 
 
