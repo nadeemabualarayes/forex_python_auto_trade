@@ -32,7 +32,7 @@ class Reporter:
             opened = "BUY" if side == "SELL" else "SELL"
             reason = {mt5.DEAL_REASON_SL: "SL", mt5.DEAL_REASON_TP: "TP"}.get(d.reason, "manual/other")
             record_trade("EXIT", d.symbol, opened, d.volume, d.price, pnl=round(net, 2),
-                         ticket=d.position_id, note=reason, when=to_server_dt(d.time))
+                         ticket=d.position_id, note=f"{reason} @ {to_server_dt(d.time):%Y-%m-%d %H:%M} server")
             emoji = "✅" if net >= 0 else "❌"
             log.info("[%s] CLOSED %s #%s net=%.2f (%s)", d.symbol, opened, d.position_id, net, reason)
             send_telegram(

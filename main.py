@@ -1,4 +1,5 @@
 """Orchestrator: risk check -> manage positions -> per-symbol signals -> reporting."""
+import sys
 import time
 import traceback
 
@@ -55,12 +56,15 @@ class Bot:
         return config.LOOP_SLEEP_SECONDS
 
 
-def run():
+def run() -> int:
+    """Returns the process exit code: 0 on manual stop, 1 when MT5 is unusable at startup.
+
+    A non-zero code matters because Task Scheduler only restarts a task that *failed*."""
     setup_logging()
     symbols = init_mt5(config.SYMBOLS)
     if not symbols:
-        log.error("no tradable symbols, exiting")
-        return
+        log.error("no tradable symbols, exiting with code 1 so the scheduler restarts us")
+        return 1
 
     log.info("START symbols=%s risk=$%.2f/trade cap=%d/day trend=%s session=%s",
              symbols, config.RISK_USD_PER_TRADE, config.MAX_TRADES_PER_DAY,
@@ -86,7 +90,8 @@ def run():
         send_telegram("\U0001F6D1 <b>Bot stopped</b> manually")
     finally:
         mt5.shutdown()
+    return 0
 
 
 if __name__ == "__main__":
-    run()
+    sys.exit(run())

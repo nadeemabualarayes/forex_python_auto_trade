@@ -52,9 +52,12 @@ def manage_positions() -> None:
         stops_dist = info.trade_stops_level * info.point
         if (side == "BUY" and price - new_sl < stops_dist) or (side == "SELL" and new_sl - price < stops_dist):
             continue
+        # First move that takes the trade out of risk is BREAKEVEN, later moves are TRAIL.
+        old_sl = p.sl
+        at_risk = old_sl == 0 or (side == "BUY" and old_sl < p.price_open) or (side == "SELL" and old_sl > p.price_open)
+        tag = "BREAKEVEN" if at_risk else "TRAIL"
         if modify_sl(p, new_sl):
-            tag = "BREAKEVEN" if abs(new_sl - p.price_open) < info.point else "TRAIL"
             log.info("[%s] %s #%s sl %.*f -> %.*f", p.symbol, tag, p.ticket,
-                     info.digits, p.sl, info.digits, new_sl)
-            record_trade("SL_MOVE", p.symbol, side, p.volume, price, round(new_sl, info.digits),
-                         p.tp, ticket=p.ticket, note=tag)
+                     info.digits, old_sl, info.digits, new_sl)
+            record_trade("SL_MOVE", p.symbol, side, p.volume, round(price, info.digits),
+                         round(new_sl, info.digits), p.tp, ticket=p.ticket, note=tag)

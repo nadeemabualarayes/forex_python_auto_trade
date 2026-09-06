@@ -19,6 +19,7 @@ MT5 Terminal <──────────────────────
                  └─ technicals.py  ATR/BB/RSI on M5, EMA200 on H1 (attach_trend uses last *closed* H1 bar)
         journal.py   logs/bot.log (rotating) + logs/trades.csv (ENTRY/EXIT/SL_MOVE/REJECTED/SKIP)
         telegram_notifier.py
+simulate.py  dry run: real Bot loop + FakeMT5 + scripted price path (logs/sim/, Telegram prefixed SIMULATION)
 backtest.py  standalone replay of strategy.generate_signal over MT5 history (same filters/sizing/breakers)
 ```
 
@@ -31,6 +32,7 @@ backtest.py  standalone replay of strategy.generate_signal over MT5 history (sam
 ## Commands
 - Run bot: `python main.py`
 - Tests: `python -m pytest tests -q`
+- Dry run: `python simulate.py [--quiet]`
 - Backtest: `python backtest.py --symbol XAUUSD --days 60 [--no-trend] [--no-session] [--csv out.csv]`
 
 ## Design notes
