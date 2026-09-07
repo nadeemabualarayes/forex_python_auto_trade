@@ -75,9 +75,24 @@ def spread_points(symbol: str):
     return (tick.ask - tick.bid) / info.point
 
 
-def bot_positions(symbol=None) -> list:
+KNOWN_MAGICS: set = {config.MAGIC_NUMBER}      # every engine's magic; Bot registers them at start-up
+
+
+def set_known_magics(magics) -> None:
+    KNOWN_MAGICS.clear()
+    KNOWN_MAGICS.update(int(m) for m in magics)
+
+
+def bot_positions(symbol=None, magic=None) -> list:
+    """Open positions of the bot's engines. magic: int, iterable of ints, or None = every known magic."""
+    if magic is None:
+        wanted = set(KNOWN_MAGICS)
+    elif isinstance(magic, int):
+        wanted = {magic}
+    else:
+        wanted = set(magic)
     positions = mt5.positions_get(symbol=symbol) if symbol else mt5.positions_get()
-    return [p for p in (positions or ()) if p.magic == config.MAGIC_NUMBER]
+    return [p for p in (positions or ()) if p.magic in wanted]
 
 
 # -- Sizing -------------------------------------------------------------------
@@ -125,7 +140,8 @@ def _pick_filling_mode(info) -> int:
     return mt5.ORDER_FILLING_RETURN
 
 
-def send_market_order(action_type: str, symbol: str, lot: float, price: float, sl: float, tp: float) -> bool:
+def send_market_order(action_type: str, symbol: str, lot: float, price: float, sl: float, tp: float,
+                      engine=None) -> bool:
     """Send a market order. Returns True on fill. Never raises on MT5 None returns."""
     info = mt5.symbol_info(symbol)
     if info is None:
@@ -134,6 +150,11 @@ def send_market_order(action_type: str, symbol: str, lot: float, price: float, s
         return False
 
     digits = info.digits
+    magic = engine.magic if engine is not None else config.MAGIC_NUMBER
+    comment_prefix = engine.comment if engine is not None else "AlgoBot"
+    risk_usd = engine.risk_usd if engine is not None else config.RISK_USD_PER_TRADE
+    tag = f"[{engine.name}] " if engine is not None and engine.name != "scalper" else ""
+    engine_line = f"▪ <b>Engine:</b> {engine.name}\n" if tag else ""
     order_type = mt5.ORDER_TYPE_BUY if action_type == "BUY" else mt5.ORDER_TYPE_SELL
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
@@ -144,8 +165,8 @@ def send_market_order(action_type: str, symbol: str, lot: float, price: float, s
         "sl": round(sl, digits),
         "tp": round(tp, digits),
         "deviation": 10,
-        "magic": config.MAGIC_NUMBER,
-        "comment": f"AlgoBot-{symbol}",
+        "magic": magic,
+        "comment": f"{comment_prefix}-{symbol}",
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": _pick_filling_mode(info),
     }
@@ -154,7 +175,7 @@ def send_market_order(action_type: str, symbol: str, lot: float, price: float, s
     if res is None:
         err = mt5.last_error()
         log.error("[%s] order_send returned None (terminal disconnected?) last_error=%s", symbol, err)
-        record_trade("REJECTED", symbol, action_type, lot, price, sl, tp, note=f"order_send None {err}")
+        record_trade("REJECTED", symbol, action_type, lot, price, sl, tp, note=f"{tag}order_send None {err}")
         send_telegram(f"\U0001F534 <b>Order failed: {action_type} {symbol}</b>\norder_send returned None: {err}")
         return False
 
@@ -162,25 +183,26 @@ def send_market_order(action_type: str, symbol: str, lot: float, price: float, s
         log.info("[%s] EXECUTED %s lot=%s entry=%.*f sl=%.*f tp=%.*f ticket=%s",
                  symbol, action_type, lot, digits, price, digits, sl, digits, tp, res.order)
         record_trade("ENTRY", symbol, action_type, lot, round(price, digits), round(sl, digits),
-                     round(tp, digits), ticket=res.order)
+                     round(tp, digits), ticket=res.order, note=tag)
         send_telegram(
             f"\U0001F7E2 <b>Trade Opened: {action_type}</b>\n\n"
+            f"{engine_line}"
             f"▪ <b>Asset:</b> {symbol}\n"
             f"▪ <b>Lot:</b> {lot}\n"
             f"▪ <b>Entry:</b> {price:.{digits}f}\n"
             f"▪ <b>SL:</b> {sl:.{digits}f}\n"
             f"▪ <b>TP:</b> {tp:.{digits}f}\n"
-            f"▪ <b>Risk Budget:</b> ${config.RISK_USD_PER_TRADE:.2f}"
+            f"▪ <b>Risk Budget:</b> ${risk_usd:.2f}"
         )
         return True
 
     log.warning("[%s] REJECTED %s lot=%s retcode=%s %s", symbol, action_type, lot, res.retcode, res.comment)
-    record_trade("REJECTED", symbol, action_type, lot, price, sl, tp, note=f"{res.retcode} {res.comment}")
+    record_trade("REJECTED", symbol, action_type, lot, price, sl, tp, note=f"{tag}{res.retcode} {res.comment}")
     send_telegram(f"\U0001F534 <b>Order rejected: {action_type} {symbol}</b>\n▪ retcode {res.retcode}\n▪ {res.comment}")
     return False
 
 
-def modify_sl(position, new_sl: float) -> bool:
+def modify_sl(position, new_sl: float, magic=None) -> bool:
     """Move the stop loss of an open position (TP unchanged)."""
     info = mt5.symbol_info(position.symbol)
     if info is None:
@@ -191,7 +213,7 @@ def modify_sl(position, new_sl: float) -> bool:
         "symbol": position.symbol,
         "sl": round(new_sl, info.digits),
         "tp": position.tp,
-        "magic": config.MAGIC_NUMBER,
+        "magic": config.MAGIC_NUMBER if magic is None else magic,
     }
     res = mt5.order_send(request)
     if res is None or res.retcode != mt5.TRADE_RETCODE_DONE:
