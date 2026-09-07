@@ -143,3 +143,25 @@ def test_one_failing_trader_does_not_stop_the_others(monkeypatch):
     bot.tick()
     assert bot.traders[1].steps == [0] and bot.traders[2].steps == [0]
     assert any("bad tick" in m for m in sent)
+
+
+def test_trader_error_alert_is_deduped_until_the_text_changes(monkeypatch):
+    bot, sent = _two_engine_bot(monkeypatch, {config.MAGIC_NUMBER: DailyStats(), 998888: DailyStats()})
+    monkeypatch.setattr(main.mt5, "terminal_info", lambda: object())
+    def boom(now, entries, news_block=None):
+        raise RuntimeError("bad tick")
+    bot.traders[0].step = boom
+    bot.tick()
+    bot.tick()
+    bot.tick()
+    assert sum("bad tick" in m for m in sent) == 1
+
+    def worse(now, entries, news_block=None):
+        raise RuntimeError("worse tick")
+    bot.traders[0].step = worse
+    bot.tick()
+    assert sum("worse tick" in m for m in sent) == 1
+
+    bot.traders[0].step = lambda now, entries, news_block=None: bot.traders[0].steps.append(entries)
+    bot.tick()
+    assert bot.errored == {}

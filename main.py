@@ -56,6 +56,7 @@ class Bot:
         self.started_at = time.monotonic()
         self.breaker_alerted = False
         self.paused: dict = {}                      # engine name -> pause reason already announced
+        self.errored: dict = {}                      # (symbol, engine) -> last error text already announced
         self.no_quote_logged = False
         self.news = NewsFilter()
         self.news_alerted: str | None = None        # blackout reason already announced on Telegram
@@ -183,12 +184,16 @@ class Bot:
             self.paused.pop(e.name, None)
             try:
                 trader.step(now, es.entries, news_block)
+                self.errored.pop((trader.symbol, e.name), None)
             except Exception as exc:
                 if mt5.terminal_info() is None:
                     raise                                # terminal gone: let run() reconnect
                 log.error("[%s] %s step failed: %s\n%s", trader.symbol, e.name, exc, traceback.format_exc())
-                send_telegram(f"⚠️ <b>{e.name} error on {trader.symbol}</b> (bot still running)\n"
-                              f"<code>{type(exc).__name__}: {exc}</code>")
+                text = f"{type(exc).__name__}: {exc}"
+                if self.errored.get((trader.symbol, e.name)) != text:
+                    send_telegram(f"⚠️ <b>{e.name} error on {trader.symbol}</b> (bot still running)\n"
+                                  f"<code>{text}</code>")
+                    self.errored[(trader.symbol, e.name)] = text
         self._publish(now, stats, None, engine_stats)
         return config.LOOP_SLEEP_SECONDS
 
