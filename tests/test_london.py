@@ -68,6 +68,21 @@ def test_width_filter_skips_wide_boxes(monkeypatch):
     assert not df["first_break"].any()
 
 
+def test_day_with_no_box_bars_leaves_edges_nan_and_never_breaks():
+    # Bars start at 10:30: none fall in the [0, 10) box hours, so the day has no box at all.
+    times = pd.date_range("2026-09-07 10:30", "2026-09-07 23:55", freq="5min")
+    close = pd.Series(5.0, index=range(len(times)))          # far above any plausible box
+    df = pd.DataFrame({"time": times, "close": close})
+    df["open"] = df["close"]
+    df["high"] = df["close"] + 0.0001
+    df["low"] = df["close"] - 0.0001
+    df["atr"] = 0.0003
+    out = add_box_columns(df, buffer_price=0.0)
+    assert out["box_high"].isna().all()
+    assert out["box_low"].isna().all()
+    assert not out["first_break"].any()
+
+
 def test_first_break_is_per_day():
     a = day_frame("2026-09-07", after={10: 1.1030})
     b = day_frame("2026-09-08", after={11: 1.0980})

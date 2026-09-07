@@ -1,4 +1,6 @@
 """Startup exit codes: Task Scheduler only restarts on a non-zero exit."""
+import pytest
+
 import execution
 import main
 
@@ -203,3 +205,18 @@ def test_engine_with_no_available_symbols_stays_in_the_magic_registry_and_breake
     result = bot.tick()
     assert any(998888 in magics for magics in calls)
     assert result == config.BREAKER_SLEEP_SECONDS
+
+
+def test_terminal_gone_reraises_the_original_error_and_sends_no_telegram(monkeypatch):
+    bot, sent = _two_engine_bot(monkeypatch, {config.MAGIC_NUMBER: DailyStats(), 998888: DailyStats()})
+    monkeypatch.setattr(main.mt5, "terminal_info", lambda: None)
+    boom = RuntimeError("terminal gone mid-tick")
+
+    def raiser(now, entries, news_block=None):
+        raise boom
+    bot.traders[0].step = raiser
+
+    with pytest.raises(RuntimeError) as exc_info:
+        bot.tick()
+    assert exc_info.value is boom
+    assert sent == []
