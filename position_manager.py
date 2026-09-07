@@ -29,15 +29,19 @@ def next_stop(side: str, entry: float, current_sl: float, price: float, atr: flo
     return candidate if improved else None
 
 
-def manage_positions() -> None:
-    if not config.MANAGE_POSITIONS:
+def manage_positions(engine=None) -> None:
+    """Breakeven then trail for one engine's open positions, using that engine's timeframe and multiples."""
+    if engine is None:
+        from engines import scalper_engine              # lazy: engines imports strategy
+        engine = scalper_engine()
+    if not engine.manage:
         return
-    for p in bot_positions():
+    for p in bot_positions(magic=engine.magic):
         info = mt5.symbol_info(p.symbol)
         tick = mt5.symbol_info_tick(p.symbol)
         if info is None or tick is None or tick.time == 0:
             continue
-        df = get_rates(p.symbol, config.TIMEFRAME, n=config.ATR_PERIOD * 3)
+        df = get_rates(p.symbol, engine.timeframe, n=config.ATR_PERIOD * 3)
         if df is None or len(df) < config.ATR_PERIOD + 2:
             continue
         atr = float(compute_indicators(df).iloc[-2]["atr"])
@@ -45,7 +49,7 @@ def manage_positions() -> None:
         price = tick.bid if side == "BUY" else tick.ask
         min_move = max(info.point * 5, atr * 0.05)     # avoid modify spam on tiny ticks
         new_sl = next_stop(side, p.price_open, p.sl, price, atr,
-                           config.BREAKEVEN_ATR, config.TRAIL_ATR, min_move)
+                           engine.breakeven_atr, engine.trail_atr, min_move)
         if new_sl is None:
             continue
         # Respect broker stop level distance from current price.
@@ -56,7 +60,7 @@ def manage_positions() -> None:
         old_sl = p.sl
         at_risk = old_sl == 0 or (side == "BUY" and old_sl < p.price_open) or (side == "SELL" and old_sl > p.price_open)
         tag = "BREAKEVEN" if at_risk else "TRAIL"
-        if modify_sl(p, new_sl):
+        if modify_sl(p, new_sl, magic=engine.magic):
             log.info("[%s] %s #%s sl %.*f -> %.*f", p.symbol, tag, p.ticket,
                      info.digits, old_sl, info.digits, new_sl)
             record_trade("SL_MOVE", p.symbol, side, p.volume, round(price, info.digits),
