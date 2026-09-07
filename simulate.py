@@ -6,7 +6,8 @@
 Scenario (XAUUSD, Monday, server time): uptrend above the H1 EMA200.
   1. dip -> BUY -> rally through breakeven and trailing stop -> take profit
   2. dip -> BUY -> keeps falling -> stop loss -> re-entry -> stop loss
-     (2 losses in a row trips the circuit breaker)
+     (the day net goes negative; the scripted $0.10 daily-loss limit trips the account
+     circuit breaker on the second loss, pre-empting the engine-level loss-streak pause)
   3. clock runs to 23:05 -> daily summary
 --trades N replaces the script with a seeded random multi-day path and stops after N closed trades.
 Each loop pass advances one M5 bar instead of sleeping.
@@ -64,7 +65,8 @@ def build_scenario():
     closes += [lvl - 6] + [lvl - 6 + k for k in range(1, 9)]     # -5 ... +2
     closes += noise(30, closes[-1], 7)
     # episode 2: dip (signal) then keep falling: first BUY stops out, the re-entry on the
-    # next oversold bar stops out too -> two losses in a row -> circuit breaker
+    # next oversold bar stops out too -> day net goes negative -> account circuit breaker
+    # (the scripted daily-loss limit is tiny, so it trips before any engine-level streak pause)
     lvl = closes[-1]
     closes += [lvl - 6 - k for k in range(0, 10)]                # -6 ... -15
     # flat until 23:05 so the daily summary fires
@@ -237,11 +239,13 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
     m5, h1, warmup = build_random_scenario(seed=seed) if trades else build_scenario()
     # The simulator exercises the bot mechanics with the plain BB+RSI rule (synthetic bars have no
     # realistic wicks for candlestick patterns); the scripted day also forces breakeven/trail on
-    # and the original breaker (2 losses in a row) so the circuit-breaker path is demonstrated.
+    # and a tiny daily-loss limit so the account circuit breaker trips as soon as the day nets
+    # negative -- under the hybrid risk policy a loss streak alone only pauses that one engine,
+    # so the account breaker is what demonstrates the circuit-breaker path here.
     overrides = {"CANDLE_MODE": "off", "NEWS_FILTER_ENABLED": False}     # no network in a dry run
     if not trades:
         overrides.update({"MANAGE_POSITIONS": True, "SESSION_START_HOUR": 0, "SESSION_END_HOUR": 24,
-                          "MAX_CONSECUTIVE_LOSSES": 2, "MAX_DAILY_LOSS_USD": 15.0})
+                          "MAX_CONSECUTIVE_LOSSES": 2, "MAX_DAILY_LOSS_USD": 0.1})
     saved = {k: getattr(config, k) for k in overrides}
     config.__dict__.update(overrides)
     try:
