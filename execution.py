@@ -11,10 +11,44 @@ from telegram_notifier import send_telegram
 
 
 # -- Connection ---------------------------------------------------------------
+def mt5_init_args() -> tuple:
+    """(args, kwargs) for mt5.initialize() from config.MT5_*.
+
+    Empty settings attach to the default terminal on its current account (the original behaviour).
+    MT5_PATH picks a specific terminal64.exe (launched if needed); MT5_LOGIN/PASSWORD/SERVER log that
+    terminal into an account; MT5_PORTABLE runs it with its data folder next to the exe."""
+    args = (config.MT5_PATH,) if config.MT5_PATH else ()
+    kwargs = {}
+    if config.MT5_LOGIN:
+        kwargs.update(login=int(config.MT5_LOGIN), password=config.MT5_PASSWORD, server=config.MT5_SERVER)
+    if config.MT5_PORTABLE:
+        kwargs["portable"] = True
+    return args, kwargs
+
+
+def account_mismatch(account, expected_login) -> str | None:
+    """Why trading must not start: the connected account is not the configured one. None = fine."""
+    if not expected_login:
+        return None
+    if account is None:
+        return "account info unavailable after login"
+    if int(account.login) != int(expected_login):
+        return f"connected to account {account.login}, expected {expected_login}"
+    return None
+
+
 def init_mt5(symbols) -> list:
-    """Initialize the terminal and select symbols. Returns the symbols that were selected."""
-    if not mt5.initialize():
+    """Initialize the terminal and select symbols. Returns the symbols that were selected.
+
+    Empty when the terminal cannot be reached or is logged into the wrong account."""
+    args, kwargs = mt5_init_args()
+    if not mt5.initialize(*args, **kwargs):
         log.error("MT5 initialization failed: %s", mt5.last_error())
+        return []
+    reason = account_mismatch(mt5.account_info(), config.MT5_LOGIN)
+    if reason:
+        log.error("refusing to trade: %s", reason)
+        mt5.shutdown()
         return []
     ok = []
     for s in symbols:

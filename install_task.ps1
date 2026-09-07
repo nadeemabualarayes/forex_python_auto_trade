@@ -1,6 +1,8 @@
 <#
 .SYNOPSIS
-  Registers (or removes) the "ForexBot" Windows scheduled task that keeps the bot running.
+  Registers (or removes) the "ForexScalpTest" Windows scheduled task that keeps the scalp-test
+  bot running. It only ever stops python processes launched from THIS folder, so it cannot
+  touch the evaluation bot ("ForexBot", in the main checkout) and vice versa.
 
 .DESCRIPTION
   The task starts run_bot.cmd when you log on and restarts it every minute if it exits
@@ -37,7 +39,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$TaskName   = "ForexBot"
+$TaskName   = "ForexScalpTest"
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Launcher   = Join-Path $ProjectDir "run_bot.cmd"
 
@@ -45,10 +47,13 @@ $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 
 function Stop-Bot {
     # Stop-ScheduledTask ends cmd.exe but not its python child, so kill the bot explicitly:
-    # any python whose command line is "main.py" and whose working folder is this project.
+    # any python whose command line names main.py inside THIS project folder (run_bot.cmd
+    # launches it by full path). The evaluation bot runs "python main.py" from another folder
+    # and is never matched.
     Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $mainPy = [regex]::Escape((Join-Path $ProjectDir "main.py"))
     $procs = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
-        Where-Object { $_.CommandLine -match '(^|\s|")main\.py("|\s|$)' }
+        Where-Object { $_.CommandLine -match $mainPy }
     foreach ($p in $procs) {
         Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
         Write-Host "  stopped bot process $($p.ProcessId)"
@@ -110,7 +115,7 @@ if ($null -ne $existing) {
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Settings $settings -Principal $principal `
-    -Description "Forex MT5 trading bot. Restarts automatically on failure." | Out-Null
+    -Description "Forex MT5 scalp-test bot (XAUUSD M1, own terminal + demo account). Restarts automatically on failure." | Out-Null
 
 Write-Host "Task '$TaskName' registered for user $user."
 Write-Host "  starts at logon, restarts every 1 min on failure, no time limit"

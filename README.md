@@ -147,3 +147,23 @@ The suite covers the signal rule, session and trend gates, position sizing, brea
 ## Disclaimer
 
 Trading leveraged instruments carries significant risk. Test on a demo account before deploying with real capital.
+
+## Scalp-test instance (branch `scalp-test`)
+
+This branch is a second, fully isolated deployment used for fast execution testing on Gold:
+XAUUSD only, M1 signals, BB + RSI 35/65 without candlestick confirmation, no trend or news
+filter, relaxed spread cap and breakers, trailing stops on, London engine off, own magic
+number (998811), dashboard on http://127.0.0.1:8081/, no GitHub Pages push.
+
+It lives in its own worktree (`C:/Develompent/forex_scalp_test`), talks to its own portable
+MT5 terminal (`C:/Develompent/mt5_scalp`, cloned from the main install) logged into a separate
+demo account, and runs under its own scheduled task `ForexScalpTest`. The terminal path and
+account come from the gitignored `.env` (`MT5_PATH`, `MT5_LOGIN`, `MT5_PASSWORD`, `MT5_SERVER`,
+`MT5_PORTABLE`); the bot exits with code 1 instead of trading if the terminal is on any other login.
+
+    powershell -ExecutionPolicy Bypass -File install_task.ps1 -Start     # register + start
+    powershell -ExecutionPolicy Bypass -File install_task.ps1 -Restart   # after code changes
+    powershell -ExecutionPolicy Bypass -File install_task.ps1 -Stop
+
+`install_task.ps1` here only stops python processes launched from this folder, so the two bots
+cannot kill each other. Keep this branch local; do not merge it into `main`.

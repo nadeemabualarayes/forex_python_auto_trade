@@ -12,7 +12,7 @@ try:
 except ImportError:
     fake = types.ModuleType("MetaTrader5")
     consts = dict(
-        TIMEFRAME_M5=5, TIMEFRAME_H1=16385,
+        TIMEFRAME_M1=1, TIMEFRAME_M5=5, TIMEFRAME_H1=16385,
         ORDER_TYPE_BUY=0, ORDER_TYPE_SELL=1, POSITION_TYPE_BUY=0, POSITION_TYPE_SELL=1,
         DEAL_TYPE_BUY=0, DEAL_TYPE_SELL=1,
         DEAL_ENTRY_IN=0, DEAL_ENTRY_OUT=1, DEAL_ENTRY_INOUT=2, DEAL_ENTRY_OUT_BY=3,
@@ -53,3 +53,25 @@ def plain_entry_rule(monkeypatch):
 def no_network(monkeypatch):
     """Tests never fetch the economic calendar; test_news opts in with a fake fetcher."""
     monkeypatch.setattr(config, "NEWS_FILTER_ENABLED", False)
+
+
+# The shared test-suite was written against the evaluation profile on `main`. This branch ships the
+# scalp-test profile in config.py, so pin the values the tests assume; test_scalp_profile.py checks
+# the profile itself.
+EVALUATION_PROFILE = dict(
+    SYMBOLS=["XAUUSD", "XAGUSD"], TIMEFRAME=sys.modules["MetaTrader5"].TIMEFRAME_M5,
+    MAGIC_NUMBER=998877, MAX_DAILY_LOSS_USD=30.0, MAX_CONSECUTIVE_LOSSES=6, MAX_TRADES_PER_DAY=6,
+    RSI_OVERSOLD=30, RSI_OVERBOUGHT=70, SL_ATR_MULTIPLIER=1.5, TP_ATR_MULTIPLIER=3.0,
+    CANDLE_MODE="confirm", NEWS_FILTER_ENABLED=True, TREND_FILTER_ENABLED=True, MANAGE_POSITIONS=False,
+    LDN_ENABLED=True, LOOP_SLEEP_SECONDS=10, ERROR_SLEEP_SECONDS=30, BREAKER_SLEEP_SECONDS=300,
+    WEB_PORT=8080, PAGES_PUBLISH_ENABLED=True,
+)
+EVALUATION_PROFILE["MAX_ALLOWED_SPREAD_POINTS"] = {**config.MAX_ALLOWED_SPREAD_POINTS, "XAUUSD": 35}
+
+
+@pytest.fixture(autouse=True)
+def evaluation_profile(request, monkeypatch):
+    if request.node.fspath.basename == "test_scalp_profile.py":
+        return
+    for key, value in EVALUATION_PROFILE.items():
+        monkeypatch.setattr(config, key, value)

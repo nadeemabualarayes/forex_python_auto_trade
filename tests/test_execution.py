@@ -167,3 +167,69 @@ class TestOrderRequest:
         assert sent[0]["magic"] == 998888
         assert execution.modify_sl(pos, 2401.0)
         assert sent[1]["magic"] == config.MAGIC_NUMBER
+
+
+# -- Connection settings (MT5_* in config / .env) ------------------------------------
+import execution  # noqa: E402
+from execution import mt5_init_args, account_mismatch, init_mt5  # noqa: E402
+import config  # noqa: E402
+
+
+def test_default_connection_attaches_to_the_default_terminal(monkeypatch):
+    for key in ("MT5_PATH", "MT5_LOGIN", "MT5_PASSWORD", "MT5_SERVER"):
+        monkeypatch.setattr(config, key, "")
+    monkeypatch.setattr(config, "MT5_PORTABLE", False)
+    assert mt5_init_args() == ((), {})
+
+
+def test_explicit_terminal_and_account_are_passed_to_initialize(monkeypatch):
+    monkeypatch.setattr(config, "MT5_PATH", "C:/mt5_scalp/terminal64.exe")
+    monkeypatch.setattr(config, "MT5_LOGIN", "5055596110")
+    monkeypatch.setattr(config, "MT5_PASSWORD", "pw")
+    monkeypatch.setattr(config, "MT5_SERVER", "MetaQuotes-Demo")
+    monkeypatch.setattr(config, "MT5_PORTABLE", True)
+    args, kwargs = mt5_init_args()
+    assert args == ("C:/mt5_scalp/terminal64.exe",)
+    assert kwargs == {"login": 5055596110, "password": "pw", "server": "MetaQuotes-Demo", "portable": True}
+
+
+def test_account_mismatch_only_checks_when_a_login_is_configured():
+    assert account_mismatch(SimpleNamespace(login=1), "") is None
+    assert account_mismatch(SimpleNamespace(login=5055596110), "5055596110") is None
+    assert "unavailable" in account_mismatch(None, "5055596110")
+    reason = account_mismatch(SimpleNamespace(login=123), "5055596110")
+    assert "123" in reason and "5055596110" in reason
+
+
+def test_init_mt5_refuses_the_wrong_account(monkeypatch):
+    calls = []
+    fake = SimpleNamespace(
+        initialize=lambda *a, **k: calls.append(("initialize", a, k)) or True,
+        account_info=lambda: SimpleNamespace(login=123),
+        symbol_select=lambda s, flag: True,
+        shutdown=lambda: calls.append(("shutdown",)),
+        last_error=lambda: (0, ""),
+    )
+    monkeypatch.setattr(execution, "mt5", fake)
+    monkeypatch.setattr(config, "MT5_PATH", "C:/mt5_scalp/terminal64.exe")
+    monkeypatch.setattr(config, "MT5_LOGIN", "5055596110")
+    monkeypatch.setattr(config, "MT5_PASSWORD", "pw")
+    monkeypatch.setattr(config, "MT5_SERVER", "MetaQuotes-Demo")
+    monkeypatch.setattr(config, "MT5_PORTABLE", True)
+    assert init_mt5(["XAUUSD"]) == []
+    assert calls[0][0] == "initialize" and calls[0][2]["login"] == 5055596110
+    assert ("shutdown",) in calls
+
+
+def test_init_mt5_selects_symbols_on_the_right_account(monkeypatch):
+    fake = SimpleNamespace(
+        initialize=lambda *a, **k: True,
+        account_info=lambda: SimpleNamespace(login=5055596110),
+        symbol_select=lambda s, flag: s == "XAUUSD",
+        shutdown=lambda: None,
+        last_error=lambda: (0, ""),
+    )
+    monkeypatch.setattr(execution, "mt5", fake)
+    monkeypatch.setattr(config, "MT5_PATH", "")
+    monkeypatch.setattr(config, "MT5_LOGIN", "5055596110")
+    assert init_mt5(["XAUUSD", "XAGUSD"]) == ["XAUUSD"]
