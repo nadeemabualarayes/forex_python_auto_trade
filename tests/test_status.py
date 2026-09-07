@@ -33,9 +33,9 @@ def test_build_status_open_market():
                         "max_consecutive_losses": config.MAX_CONSECUTIVE_LOSSES,
                         "max_daily_loss": config.MAX_DAILY_LOSS_USD}
     assert s["positions"] == [{"symbol": "XAUUSD", "side": "BUY", "volume": 0.05, "price_open": 2400.1,
-                               "sl": 2395.0, "tp": 2410.0, "profit": 1.5, "ticket": 123}]
-    assert s["traders"] == [{"symbol": "XAUUSD", "state": "position open", "last_signal_bar": None},
-                            {"symbol": "XAGUSD", "state": "watching", "last_signal_bar": "2026-09-07 14:25"}]
+                               "sl": 2395.0, "tp": 2410.0, "profit": 1.5, "ticket": 123, "engine": "other"}]
+    assert s["traders"] == [{"symbol": "XAUUSD", "state": "position open", "last_signal_bar": None, "engine": "scalper"},
+                            {"symbol": "XAGUSD", "state": "watching", "last_signal_bar": "2026-09-07 14:25", "engine": "scalper"}]
     assert s["open_pnl"] == 1.5
 
 
@@ -145,3 +145,26 @@ def test_build_status_carries_news_block(monkeypatch):
     s2 = build_status(now=None, stats=None, positions=[], traders=[], breaker=None, symbols=[],
                       started_at=0.0, now_mono=0.0)
     assert s2["news"]["enabled"] is False and s2["news"]["blocked"] is None
+
+
+from types import SimpleNamespace as _NS  # noqa: E402
+
+from status import engine_block  # noqa: E402
+
+
+def test_engine_block_and_tags():
+    eng = _NS(name="london", magic=998888, symbols=("EURUSD", "GBPUSD"), max_trades_per_day=2, max_consecutive_losses=4)
+    blk = engine_block(eng, DailyStats(net_pnl=-3.0, consecutive_losses=1, entries=1, wins=0, losses=1), paused=None)
+    assert blk == {"name": "london", "magic": 998888, "symbols": ["EURUSD", "GBPUSD"], "entries": 1, "max_entries": 2,
+                   "net_pnl": -3.0, "wins": 0, "losses": 1, "consecutive_losses": 1, "max_consecutive_losses": 4,
+                   "paused": None}
+    pos = _pos()
+    pos.magic = 998888
+    trader = _trader("EURUSD")
+    trader.engine = _NS(name="london")
+    s = build_status(now=datetime(2026, 9, 7, 14, 30), stats=DailyStats(), positions=[pos, _pos()],
+                     traders=[trader, _trader("XAUUSD")], breaker=None, symbols=["EURUSD", "XAUUSD"],
+                     started_at=0.0, now_mono=1.0, engines=[blk])
+    assert s["engines"] == [blk]
+    assert [p["engine"] for p in s["positions"]] == ["london", "other"]
+    assert [t["engine"] for t in s["traders"]] == ["london", "scalper"]

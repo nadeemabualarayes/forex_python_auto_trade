@@ -17,13 +17,28 @@ def _side(ptype) -> str:
     return "BUY" if ptype == 0 else "SELL"           # POSITION_TYPE_BUY == 0
 
 
+def engine_block(engine, stats, paused) -> dict:
+    """One engine's day for the dashboard strip."""
+    return {
+        "name": engine.name, "magic": engine.magic, "symbols": list(engine.symbols),
+        "entries": stats.entries if stats else 0, "max_entries": engine.max_trades_per_day,
+        "net_pnl": round(stats.net_pnl, 2) if stats else 0.0,
+        "wins": stats.wins if stats else 0, "losses": stats.losses if stats else 0,
+        "consecutive_losses": stats.consecutive_losses if stats else 0,
+        "max_consecutive_losses": engine.max_consecutive_losses,
+        "paused": paused,
+    }
+
+
 def build_status(now: datetime | None, stats, positions, traders, breaker, symbols,
                  started_at: float, now_mono: float, account: dict | None = None,
                  analytics: dict | None = None, history: list | None = None,
-                 charts: dict | None = None, news: dict | None = None) -> dict:
+                 charts: dict | None = None, news: dict | None = None, engines: list | None = None) -> dict:
     """JSON-serialisable snapshot of one tick.
 
     now=None means no live quote (market closed); stats is then ignored."""
+    engines = engines or []
+    names = {e["magic"]: e["name"] for e in engines}
     day = {
         "net_pnl": round(stats.net_pnl, 2) if stats else 0.0,
         "wins": stats.wins if stats else 0,
@@ -38,11 +53,13 @@ def build_status(now: datetime | None, stats, positions, traders, breaker, symbo
     pos = [{
         "symbol": p.symbol, "side": _side(p.type), "volume": p.volume, "price_open": p.price_open,
         "sl": p.sl, "tp": p.tp, "profit": round(p.profit, 2), "ticket": p.ticket,
+        "engine": names.get(getattr(p, "magic", None), "other"),
     } for p in positions]
     trd = [{
         "symbol": t.symbol,
         "state": t.last_skip_reason or "watching",
         "last_signal_bar": str(t.last_signal_bar) if t.last_signal_bar is not None else None,
+        "engine": getattr(getattr(t, "engine", None), "name", "scalper"),
     } for t in traders]
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -56,6 +73,7 @@ def build_status(now: datetime | None, stats, positions, traders, breaker, symbo
         "positions": pos,
         "open_pnl": round(sum(p["profit"] for p in pos), 2),
         "traders": trd,
+        "engines": engines,
         "account": account,
         "analytics": analytics,
         "history": history or [],
