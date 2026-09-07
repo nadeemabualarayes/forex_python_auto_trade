@@ -14,7 +14,6 @@ MT5 Terminal <──────────────────────
         ├─ reporting.notify_closes()     Telegram + journal for new OUT deals
         ├─ position_manager.manage_positions()   breakeven then ATR trail on open bot positions
         ├─ reporting.maybe_heartbeat / maybe_daily_summary
-        ├─ risk.breaker_reason()         pause entries on daily loss / loss streak
         ├─ risk.account_breaker / engine_breaker   account-wide daily loss pauses all; loss streak pauses one engine
         ├─ news.NewsFilter               Forex Factory weekly JSON (USD High), UTC wall clock; refresh every 4 h, cache on failure
         └─ engines.build_engines()      Engine profiles: scalper (BB+RSI pin-bar, M5) and london (box breakout, M5)

@@ -5,7 +5,8 @@ import MetaTrader5 as mt5
 import pytest
 
 import config
-from risk import stats_from_deals, breaker_reason, day_start_epoch, DailyStats
+import risk
+from risk import stats_from_deals, day_start_epoch, DailyStats
 
 MAGIC = config.MAGIC_NUMBER
 DAY = day_start_epoch(datetime(2026, 9, 4))
@@ -45,15 +46,6 @@ def test_streak_resets_on_win_and_ignores_other_magic_and_old_deals():
     assert s.net_pnl == pytest.approx(0.0)
 
 
-def test_breaker_reasons(monkeypatch):
-    monkeypatch.setattr(config, "MAX_DAILY_LOSS_USD", 15.0)
-    monkeypatch.setattr(config, "MAX_CONSECUTIVE_LOSSES", 2)
-    assert breaker_reason(DailyStats(net_pnl=-14.99)) is None
-    assert "daily loss" in breaker_reason(DailyStats(net_pnl=-15.0))
-    assert "consecutive" in breaker_reason(DailyStats(consecutive_losses=2))
-    assert breaker_reason(DailyStats(consecutive_losses=1)) is None
-
-
 from types import SimpleNamespace as _NS  # noqa: E402
 
 from risk import combine, account_breaker, engine_breaker  # noqa: E402
@@ -81,3 +73,34 @@ def test_engine_breaker_uses_the_engine_limit():
     engine = _NS(name="london", max_consecutive_losses=4)
     assert engine_breaker(engine, DailyStats(consecutive_losses=4)) == "4 consecutive losses"
     assert engine_breaker(engine, DailyStats(consecutive_losses=3, net_pnl=-1000)) is None
+
+
+def test_daily_stats_by_magic_fetches_deals_once_for_every_magic(monkeypatch):
+    calls = []
+
+    def fake_history_deals_get(date_from, date_to):
+        calls.append((date_from, date_to))
+        return [
+            deal(10, mt5.DEAL_ENTRY_OUT, 5.0, magic=MAGIC),
+            deal(20, mt5.DEAL_ENTRY_OUT, -3.0, magic=998888),
+            deal(30, mt5.DEAL_ENTRY_OUT, -1.0, magic=998888),
+        ]
+
+    monkeypatch.setattr(risk.mt5, "history_deals_get", fake_history_deals_get)
+    out = risk.daily_stats_by_magic([MAGIC, 998888], datetime(2026, 9, 4, 12, 0))
+    assert len(calls) == 1
+    assert out[MAGIC].net_pnl == pytest.approx(5.0) and out[MAGIC].wins == 1
+    assert out[998888].net_pnl == pytest.approx(-4.0) and out[998888].losses == 2
+
+
+def test_get_daily_stats_is_a_thin_wrapper_over_daily_stats_by_magic(monkeypatch):
+    calls = []
+
+    def fake_history_deals_get(date_from, date_to):
+        calls.append((date_from, date_to))
+        return [deal(10, mt5.DEAL_ENTRY_OUT, 5.0, magic=MAGIC)]
+
+    monkeypatch.setattr(risk.mt5, "history_deals_get", fake_history_deals_get)
+    s = risk.get_daily_stats(MAGIC, datetime(2026, 9, 4, 12, 0))
+    assert len(calls) == 1
+    assert s.net_pnl == pytest.approx(5.0)

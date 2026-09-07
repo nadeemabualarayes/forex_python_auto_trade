@@ -16,7 +16,7 @@ from journal import setup_logging, log
 from news import NewsFilter
 from position_manager import manage_positions
 from reporting import Reporter
-from risk import ServerClock, get_daily_stats, combine, account_breaker, engine_breaker
+from risk import ServerClock, daily_stats_by_magic, combine, account_breaker, engine_breaker
 from publisher import PagesPublisher
 from status import build_status, with_trades, chart_block, engine_block
 from strategy import SymbolTrader
@@ -142,7 +142,8 @@ class Bot:
             return config.LOOP_SLEEP_SECONDS
         self.no_quote_logged = False
 
-        engine_stats = {e.name: get_daily_stats(e.magic, now) for e in self.all_engines}
+        stats_by_magic = daily_stats_by_magic([e.magic for e in self.all_engines], now)
+        engine_stats = {e.name: stats_by_magic[e.magic] for e in self.all_engines}
         stats = combine(engine_stats.values())
         pairs = [(e, engine_stats[e.name]) for e in self.all_engines]
         self.reporter.notify_closes(stats)

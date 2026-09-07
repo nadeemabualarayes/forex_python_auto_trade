@@ -85,7 +85,8 @@ def _two_engine_bot(monkeypatch, stats_by_magic):
     scalper = scalper_engine()
     london = replace(scalper, name="london", magic=998888, symbols=("EURUSD",), max_consecutive_losses=2)
     monkeypatch.setattr(main, "SymbolTrader", _Trader)
-    monkeypatch.setattr(main, "get_daily_stats", lambda magic, now: stats_by_magic[magic])
+    monkeypatch.setattr(main, "daily_stats_by_magic",
+                        lambda magics, now: {m: stats_by_magic[m] for m in magics})
     monkeypatch.setattr(main, "manage_positions", lambda engine=None: None)
     monkeypatch.setattr(main, "bot_positions", lambda *a, **k: [])
     monkeypatch.setattr(main.config, "HISTORY_ENABLED", False)
@@ -175,10 +176,10 @@ def test_engine_with_no_available_symbols_stays_in_the_magic_registry_and_breake
     monkeypatch.setattr(main, "SymbolTrader", _Trader)
     stats_by_magic = {config.MAGIC_NUMBER: DailyStats(net_pnl=0.0), 998888: DailyStats(net_pnl=-40.0)}
     calls = []
-    def fake_get_daily_stats(magic, now):
-        calls.append(magic)
-        return stats_by_magic[magic]
-    monkeypatch.setattr(main, "get_daily_stats", fake_get_daily_stats)
+    def fake_daily_stats_by_magic(magics, now):
+        calls.append(list(magics))
+        return {m: stats_by_magic[m] for m in magics}
+    monkeypatch.setattr(main, "daily_stats_by_magic", fake_daily_stats_by_magic)
     monkeypatch.setattr(main, "manage_positions", lambda engine=None: None)
     monkeypatch.setattr(main, "bot_positions", lambda *a, **k: [])
     monkeypatch.setattr(main.config, "HISTORY_ENABLED", False)
@@ -200,5 +201,5 @@ def test_engine_with_no_available_symbols_stays_in_the_magic_registry_and_breake
     assert bot.paused["london"] == "no symbols available"
 
     result = bot.tick()
-    assert 998888 in calls
+    assert any(998888 in magics for magics in calls)
     assert result == config.BREAKER_SLEEP_SECONDS

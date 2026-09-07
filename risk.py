@@ -101,12 +101,17 @@ def stats_from_deals(deals, magic: int, start_epoch: int) -> DailyStats:
     return s
 
 
-def get_daily_stats(magic: int, server_dt: datetime) -> DailyStats:
+def daily_stats_by_magic(magics, server_dt: datetime) -> dict:
+    """Every magic's DailyStats from a single history_deals_get call over the server day's window."""
     start = day_start_epoch(server_dt)
     date_from = datetime.fromtimestamp(start, timezone.utc) - timedelta(days=1)
     date_to = datetime.now(timezone.utc) + timedelta(days=2)
     deals = mt5.history_deals_get(date_from, date_to) or ()
-    return stats_from_deals(deals, magic, start)
+    return {magic: stats_from_deals(deals, magic, start) for magic in magics}
+
+
+def get_daily_stats(magic: int, server_dt: datetime) -> DailyStats:
+    return daily_stats_by_magic([magic], server_dt)[magic]
 
 
 def combine(stats_list) -> DailyStats:
@@ -132,15 +137,5 @@ def account_breaker(stats: DailyStats):
 def engine_breaker(engine, stats: DailyStats):
     """Per-engine pause: that engine's own loss streak against its own limit."""
     if stats.consecutive_losses >= engine.max_consecutive_losses:
-        return f"{stats.consecutive_losses} consecutive losses"
-    return None
-
-
-def breaker_reason(stats: DailyStats):
-    """Single-engine rule kept for the backtester and older callers."""
-    reason = account_breaker(stats)
-    if reason:
-        return reason
-    if stats.consecutive_losses >= config.MAX_CONSECUTIVE_LOSSES:
         return f"{stats.consecutive_losses} consecutive losses"
     return None
