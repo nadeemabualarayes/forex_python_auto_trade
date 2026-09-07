@@ -125,3 +125,29 @@ def test_format_report_names_the_engine():
     from backtest import format_report
     assert "<b>BACKTEST london</b>" in format_report(30, {}, engine_name="london")
     assert "<b>BACKTEST scalper</b>" in format_report(30, {})
+
+
+def test_london_engine_replays_one_box_break_per_day(monkeypatch):
+    from engines import london_engine
+    from london import add_box_columns
+    for k, v in dict(LDN_BOX_START_HOUR=0, LDN_BOX_END_HOUR=10, LDN_WINDOW_END_HOUR=14, LDN_BUFFER_PIPS=0.0,
+                     LDN_MAX_BOX_ATR=0.0, LDN_TREND_FILTER=False, LDN_SL_MODE="atr", LDN_SL_ATR=1.0, LDN_TP_R=2.0,
+                     LDN_MAX_TRADES_PER_DAY=2, LDN_MAX_CONSECUTIVE_LOSSES=4, LDN_MANAGE_POSITIONS=False).items():
+        monkeypatch.setattr(config, k, v, raising=False)
+    monkeypatch.setattr(config, "SESSION_FILTER_ENABLED", False)
+    times = pd.date_range("2026-09-07 00:00", periods=24 * 12, freq="5min")     # Monday
+    close = pd.Series(1.1000, index=range(len(times)))
+    close[times.hour >= 10] = 1.1030                                           # break at 10:00
+    close[times.hour >= 11] = 1.1080                                           # runs to the 2R target
+    df = pd.DataFrame({"time": times, "open": close, "high": close + 0.0002, "low": close - 0.0002, "close": close})
+    df["atr"] = 0.0010
+    df = add_box_columns(df, buffer_price=0.0)
+    e = london_engine()
+    trades = run_backtest(df, "EURUSD", 0.0, 0.00001, 1.0, lambda d: 0.01, signal=e.signal, levels=e.levels,
+                          max_trades_per_day=e.max_trades_per_day, max_consecutive_losses=e.max_consecutive_losses,
+                          manage=e.manage, be_atr=e.breakeven_atr, trail_atr=e.trail_atr)
+    assert len(trades) == 1
+    t = trades[0]
+    assert t.side == "BUY" and t.entry == pytest.approx(1.1030)
+    assert t.sl == pytest.approx(1.1020) and t.tp == pytest.approx(1.1050) and t.reason == "TP"
+    assert t.pnl == pytest.approx((1.1050 - 1.1030) / 0.00001 * 1.0 * 0.01)
