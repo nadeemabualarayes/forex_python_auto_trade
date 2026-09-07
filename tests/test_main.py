@@ -1,4 +1,5 @@
 """Startup exit codes: Task Scheduler only restarts on a non-zero exit."""
+import execution
 import main
 
 
@@ -89,6 +90,7 @@ def _two_engine_bot(monkeypatch, stats_by_magic):
     monkeypatch.setattr(main, "bot_positions", lambda *a, **k: [])
     monkeypatch.setattr(main.config, "HISTORY_ENABLED", False)
     monkeypatch.setattr(main.config, "WEB_ENABLED", False)
+    monkeypatch.setattr(execution, "KNOWN_MAGICS", set(execution.KNOWN_MAGICS))
     sent = []
     monkeypatch.setattr(main, "send_telegram", sent.append)
     bot = main.Bot(["XAUUSD", "XAGUSD", "EURUSD"], engines=[scalper, london])
@@ -105,11 +107,11 @@ def test_bot_builds_one_trader_per_engine_symbol_and_drops_unavailable(monkeypat
     london = replace(scalper, name="london", magic=998888, symbols=("EURUSD", "GBPUSD"))
     monkeypatch.setattr(main, "SymbolTrader", _Trader)
     monkeypatch.setattr(main.config, "HISTORY_ENABLED", False)
+    monkeypatch.setattr(execution, "KNOWN_MAGICS", set(execution.KNOWN_MAGICS))
     bot = main.Bot(["XAUUSD", "XAGUSD", "EURUSD"], engines=[scalper, london])
     assert [(t.symbol, t.engine.name) for t in bot.traders] == [("XAUUSD", "scalper"), ("XAGUSD", "scalper"), ("EURUSD", "london")]
     assert bot.symbols == ["XAUUSD", "XAGUSD", "EURUSD"]
     assert bot.engines[1].symbols == ("EURUSD",)
-    import execution
     assert execution.KNOWN_MAGICS == {config.MAGIC_NUMBER, 998888}
 
 
@@ -165,3 +167,38 @@ def test_trader_error_alert_is_deduped_until_the_text_changes(monkeypatch):
     bot.traders[0].step = lambda now, entries, news_block=None: bot.traders[0].steps.append(entries)
     bot.tick()
     assert bot.errored == {}
+
+
+def test_engine_with_no_available_symbols_stays_in_the_magic_registry_and_breaker(monkeypatch):
+    scalper = scalper_engine()
+    london = replace(scalper, name="london", magic=998888, symbols=("GBPUSD",), max_consecutive_losses=2)
+    monkeypatch.setattr(main, "SymbolTrader", _Trader)
+    stats_by_magic = {config.MAGIC_NUMBER: DailyStats(net_pnl=0.0), 998888: DailyStats(net_pnl=-40.0)}
+    calls = []
+    def fake_get_daily_stats(magic, now):
+        calls.append(magic)
+        return stats_by_magic[magic]
+    monkeypatch.setattr(main, "get_daily_stats", fake_get_daily_stats)
+    monkeypatch.setattr(main, "manage_positions", lambda engine=None: None)
+    monkeypatch.setattr(main, "bot_positions", lambda *a, **k: [])
+    monkeypatch.setattr(main.config, "HISTORY_ENABLED", False)
+    monkeypatch.setattr(main.config, "WEB_ENABLED", False)
+    monkeypatch.setattr(config, "MAX_DAILY_LOSS_USD", 30.0)
+    monkeypatch.setattr(execution, "KNOWN_MAGICS", set(execution.KNOWN_MAGICS))
+    sent = []
+    monkeypatch.setattr(main, "send_telegram", sent.append)
+
+    # No symbol GBPUSD is available: london is disabled but must not vanish from bookkeeping.
+    bot = main.Bot(["XAUUSD", "XAGUSD"], engines=[scalper, london])
+    bot.clock.now = lambda symbols: datetime(2026, 9, 7, 12, 0)
+    bot.news.maybe_refresh = lambda *a, **k: False
+    bot.news.block_reason = lambda *a, **k: None
+    bot.reporter.maybe_heartbeat = lambda *a, **k: None
+    bot.reporter.maybe_daily_summary = lambda *a, **k: None
+
+    assert execution.KNOWN_MAGICS == {config.MAGIC_NUMBER, 998888}
+    assert bot.paused["london"] == "no symbols available"
+
+    result = bot.tick()
+    assert 998888 in calls
+    assert result == config.BREAKER_SLEEP_SECONDS

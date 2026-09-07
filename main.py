@@ -28,11 +28,15 @@ class Bot:
     def __init__(self, symbols, web: StatusServer | None = None, pages: PagesPublisher | None = None,
                  engines=None):
         available = list(symbols)
-        self.engines = []
+        self.paused: dict = {}                      # engine name -> pause reason already announced
+        self.all_engines = []                        # every built engine, original symbols: registry/history/breaker
+        self.engines = []                             # tradeable subset (symbols restricted): traders/chart refresh
         for e in (engines if engines is not None else build_engines()):
+            self.all_engines.append(e)
             syms = tuple(s for s in e.symbols if s in available)
             if not syms:
                 log.warning("engine %s disabled: none of %s is available", e.name, list(e.symbols))
+                self.paused[e.name] = "no symbols available"
                 continue
             self.engines.append(replace(e, symbols=syms))
         self.symbols = []
@@ -40,9 +44,9 @@ class Bot:
             for s in e.symbols:
                 if s not in self.symbols:
                     self.symbols.append(s)
-        set_known_magics(e.magic for e in self.engines)
+        set_known_magics(e.magic for e in self.all_engines)
         self.traders = [SymbolTrader(s, e) for e in self.engines for s in e.symbols]
-        self.reporter = Reporter(engine_names(self.engines))
+        self.reporter = Reporter(engine_names(self.all_engines))
         self.clock = ServerClock()
         self.web = web
         self.pages = pages
@@ -55,7 +59,6 @@ class Bot:
         self.last_chart_refresh: float | None = None
         self.started_at = time.monotonic()
         self.breaker_alerted = False
-        self.paused: dict = {}                      # engine name -> pause reason already announced
         self.errored: dict = {}                      # (symbol, engine) -> last error text already announced
         self.no_quote_logged = False
         self.news = NewsFilter()
@@ -71,7 +74,7 @@ class Bot:
             return
         self.last_sync = mono
         try:
-            n = sync_deals(self.store, [e.magic for e in self.engines], config.HISTORY_INCLUDE_ALL_DEALS)
+            n = sync_deals(self.store, [e.magic for e in self.all_engines], config.HISTORY_INCLUDE_ALL_DEALS)
             epoch = calendar.timegm(now.timetuple()) if now else int(time.time())
             open_pnl = sum(p.profit for p in bot_positions())
             self.account = snapshot_equity(self.store, open_pnl=open_pnl, now_epoch=epoch)
@@ -81,7 +84,7 @@ class Bot:
                 start_balance = round(self.account["balance"] - sum(t.net for t in trades), 2)
             snapshots = self.store.equity_series(since=epoch - 30 * 86400, step=3600)
             self.analytics = build_analytics(trades, start_balance, snapshots)
-            self.history = trade_dicts(trades, config.HISTORY_MAX_TRADES, engine_names(self.engines))
+            self.history = trade_dicts(trades, config.HISTORY_MAX_TRADES, engine_names(self.all_engines))
             if n:
                 log.info("history: synced %d deals, %d closed trades on record", n, len(trades))
         except Exception as e:
@@ -114,7 +117,7 @@ class Bot:
         try:
             self._maybe_refresh_charts()
             blocks = [engine_block(e, (engine_stats or {}).get(e.name), self.paused.get(e.name))
-                      for e in self.engines]
+                      for e in self.all_engines]
             snap = build_status(now, stats, bot_positions(), self.traders, breaker,
                                 self.symbols, self.started_at, time.monotonic(),
                                 account=self.account, analytics=self.analytics, history=self.history,
@@ -139,9 +142,9 @@ class Bot:
             return config.LOOP_SLEEP_SECONDS
         self.no_quote_logged = False
 
-        engine_stats = {e.name: get_daily_stats(e.magic, now) for e in self.engines}
+        engine_stats = {e.name: get_daily_stats(e.magic, now) for e in self.all_engines}
         stats = combine(engine_stats.values())
-        pairs = [(e, engine_stats[e.name]) for e in self.engines]
+        pairs = [(e, engine_stats[e.name]) for e in self.all_engines]
         self.reporter.notify_closes(stats)
         for e in self.engines:
             manage_positions(e)
