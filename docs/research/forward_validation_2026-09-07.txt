@@ -1,0 +1,25 @@
+FORWARD VALIDATION  XAUUSD  magic 998811  account 5055596110  balance 2903.88  generated 2026-09-07 14:33 (local = server on this host)
+sizing fix live since 2026-09-07 14:26:39 server; risk budget $5.00; profile: M1 rsi 35/65 sl/tp 2.0/2.0 ATR trend=False candles=off manage=True
+ATR regime cut-offs (terciles of 30-day M1 ATR): LOW below 1.614, HIGH from 2.303
+contract 100, tick 0.01, reported tick value 0.1 (terminal-priced: 1)
+
+PER-TRADE (strategy-generated, manual [test] orders excluded)
+server time      side      entry   stop   lot expLot  risk$    net$     Rexit   source             atrregime     penbucket  sess  sizing
+2026-09-07 13:23  LONG    4400.58   2.63  0.18   0.01  47.34  -47.34 -1.00 SL     field (pre-fix)   1.32 LOW       0.24 small   12-17 MISMATCH
+2026-09-07 13:24  LONG    4398.26   2.71  0.18   0.01  48.78  -48.78 -1.00 SL     field (pre-fix)   1.36 LOW       0.85 deep    12-17 MISMATCH
+
+strategy trades: 2 total = 2 pre-fix (oversized, excluded from the forward set) + 0 post-fix
+post-fix sizing: 0 of 0 lots equal the terminal-priced lot for $5.00; risk at stop []
+since fix: 0 min-lot skips, 0 'could not price' skips, 0 journal SKIP rows, 0 field-verified lines, 1 wrong-field warnings, 1 engine starts, 0 errors/tracebacks, 1 warnings, 0 breaker/pause lines
+
+PRE-FIX (for the record only)
+                          trades wins loss   win%      net    PF    exp$   expR   maxDD streak
+pre-fix                        2    0    2    0.0   -96.12  0.00  -48.06  -1.00   96.12      2
+
+sizing / pricing warnings since fix:
+    2026-09-07 14:26:39 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+errors since fix:
+    none
+breaker / pause lines since fix:
+    none
+
