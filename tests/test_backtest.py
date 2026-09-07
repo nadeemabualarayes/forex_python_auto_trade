@@ -98,3 +98,30 @@ def test_history_spread_falls_back_to_current_when_bars_carry_none():
     zeros = pd.DataFrame({"spread": [0, 0, 0]})
     assert history_spread(zeros, fallback_points=7, point=0.00001) == pytest.approx(0.00007)
     assert history_spread(pd.DataFrame({"close": [1.0]}), fallback_points=7, point=0.00001) == pytest.approx(0.00007)
+
+
+def test_run_backtest_accepts_signal_and_levels_callables(no_filters):
+    from strategy import Levels
+    df = frame([(100, 101, 99, 100), (100, 101, 99, 100), (100, 101, 99, 100), (100, 107, 99.5, 106)])
+    df["atr"] = 2.0
+    sig = lambda bar: "BUY" if bar["time"].minute == 5 else None            # bar 1 only
+    lv = lambda side, ask, bid, bar: Levels(side, ask, ask - 3.0, ask + 6.0, 3.0)
+    trades = run_backtest(df, "X", 0.0, 0.01, 0.1, lambda d: 0.1, signal=sig, levels=lv)
+    assert len(trades) == 1 and trades[0].tp == 106 and trades[0].reason == "TP"
+    none = run_backtest(df, "X", 0.0, 0.01, 0.1, lambda d: 0.1, signal=sig, levels=lambda *a: None)
+    assert none == []
+
+
+def test_engine_cap_and_streak_override_config(no_filters, monkeypatch):
+    monkeypatch.setattr(config, "MAX_TRADES_PER_DAY", 99)
+    rows = [(100, 101, 99, 100), (99, 99.5, 88, 89), (100, 107, 99.5, 106)] * 3
+    df = frame(rows)
+    df["atr"], df["lower_band"], df["upper_band"] = 2.0, 90.0, 110.0
+    df["rsi"] = [50, 20, 50] * 3
+    assert len(run_backtest(df, "X", 0.0, 0.01, 0.1, lambda d: 0.1, max_trades_per_day=1)) == 1
+
+
+def test_format_report_names_the_engine():
+    from backtest import format_report
+    assert "<b>BACKTEST london</b>" in format_report(30, {}, engine_name="london")
+    assert "<b>BACKTEST scalper</b>" in format_report(30, {})

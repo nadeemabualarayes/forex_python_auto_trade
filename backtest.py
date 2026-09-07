@@ -17,9 +17,9 @@ import numpy as np
 import pandas as pd
 
 import config
-from strategy import generate_signal, in_session, build_levels
-from technicals import compute_indicators, compute_trend, attach_trend
+from strategy import generate_signal, in_session
 from position_manager import next_stop
+from engines import scalper_levels
 
 
 @dataclass
@@ -39,7 +39,8 @@ class SimTrade:
 
 # -- Pure simulation ------------------------------------------------------------
 def resolve_exit(df: pd.DataFrame, start: int, side: str, sl: float, tp: float,
-                 entry: float | None = None, manage: bool = False, point: float = 0.01):
+                 entry: float | None = None, manage: bool = False, point: float = 0.01,
+                 be_atr: float | None = None, trail_atr: float | None = None):
     """Scan bars from `start`; return (idx, price, reason) or None if never closed.
 
     With `manage`, the live breakeven/trail rule is applied on every bar close (the
@@ -62,15 +63,28 @@ def resolve_exit(df: pd.DataFrame, start: int, side: str, sl: float, tp: float,
         if manage and entry is not None:
             atr = float(atrs[j])
             new_sl = next_stop(side, entry, sl, float(closes[j]), atr,
-                               config.BREAKEVEN_ATR, config.TRAIL_ATR, max(point * 5, atr * 0.05))
+                               config.BREAKEVEN_ATR if be_atr is None else be_atr,
+                               config.TRAIL_ATR if trail_atr is None else trail_atr,
+                               max(point * 5, atr * 0.05))
             if new_sl is not None:
                 sl, moved = new_sl, True
     return None
 
 
 def run_backtest(df: pd.DataFrame, symbol: str, spread_price: float, tick_size: float,
-                 tick_value: float, lot_fn) -> list:
-    """df must already carry indicators (and trend_ema if the filter is on)."""
+                 tick_value: float, lot_fn, signal=None, levels=None, max_trades_per_day=None,
+                 max_consecutive_losses=None, manage=None, be_atr=None, trail_atr=None) -> list:
+    """df must already carry indicators (and trend_ema if the filter is on).
+
+    Entry rule and levels are callables so any engine profile can be replayed; every optional
+    parameter left at None uses the scalper's config value."""
+    signal = signal or generate_signal
+    levels = levels or scalper_levels
+    cap = config.MAX_TRADES_PER_DAY if max_trades_per_day is None else max_trades_per_day
+    max_streak = config.MAX_CONSECUTIVE_LOSSES if max_consecutive_losses is None else max_consecutive_losses
+    manage = config.MANAGE_POSITIONS if manage is None else manage
+    be_atr = config.BREAKEVEN_ATR if be_atr is None else be_atr
+    trail_atr = config.TRAIL_ATR if trail_atr is None else trail_atr
     trades = []
     rows = df.to_dict("records")                       # plain dicts: ~10x faster than df.iloc per bar
     times = df["time"].values
@@ -86,22 +100,24 @@ def run_backtest(df: pd.DataFrame, symbol: str, spread_price: float, tick_size: 
             day, entries_today, pnl_today, streak = t.date(), 0, 0.0, 0
         if not in_session(t):
             continue
-        if entries_today >= config.MAX_TRADES_PER_DAY:
+        if entries_today >= cap:
             continue
-        if pnl_today <= -config.MAX_DAILY_LOSS_USD or streak >= config.MAX_CONSECUTIVE_LOSSES:
+        if pnl_today <= -config.MAX_DAILY_LOSS_USD or streak >= max_streak:
             continue
-        side = generate_signal(bar)
+        side = signal(bar)
         if not side:
             continue
 
         mid = float(rows[i]["open"])                    # bar after the signal bar
-        lv = build_levels(side, mid + spread_price / 2, mid - spread_price / 2, float(bar["atr"]))
+        lv = levels(side, mid + spread_price / 2, mid - spread_price / 2, bar)
+        if lv is None:
+            continue
         lot = lot_fn(lv.sl_dist)
         if lot <= 0:
             continue
         entries_today += 1
-        res = resolve_exit(df, i, side, lv.sl, lv.tp, entry=lv.entry,
-                           manage=config.MANAGE_POSITIONS, point=tick_size)
+        res = resolve_exit(df, i, side, lv.sl, lv.tp, entry=lv.entry, manage=manage, point=tick_size,
+                           be_atr=be_atr, trail_atr=trail_atr)
         if res is None:
             break                                       # still open at end of data
         j, px, reason = res
@@ -139,9 +155,9 @@ def summarize(trades: list) -> dict:
     }
 
 
-def format_report(days: int, per_symbol: dict) -> str:
+def format_report(days: int, per_symbol: dict, engine_name: str = "scalper") -> str:
     """Telegram (HTML) digest of one or more symbol backtests: {symbol: summarize(...)}."""
-    lines = [f"<b>BACKTEST</b> last {days} days (to {datetime.now():%Y-%m-%d})",
+    lines = [f"<b>BACKTEST {engine_name}</b> last {days} days (to {datetime.now():%Y-%m-%d})",
              f"trend={config.TREND_FILTER_ENABLED} session={config.SESSION_FILTER_ENABLED} "
              f"candles={config.CANDLE_MODE} manage={config.MANAGE_POSITIONS} "
              f"risk ${config.RISK_USD_PER_TRADE:g}/trade"]
@@ -166,9 +182,12 @@ def history_spread(df: pd.DataFrame, fallback_points: float, point: float) -> fl
 
 
 # -- Data + CLI ------------------------------------------------------------------
-def load_history(symbol: str, days: int):
+def load_history(symbol: str, days: int, engine=None):
     import MetaTrader5 as mt5
     from execution import get_rates_range, lot_for_risk
+    if engine is None:
+        from engines import scalper_engine
+        engine = scalper_engine()
 
     if not mt5.initialize():
         raise SystemExit(f"MT5 initialize failed: {mt5.last_error()}")
@@ -178,29 +197,28 @@ def load_history(symbol: str, days: int):
         raise SystemExit(f"unknown symbol {symbol}")
     end = datetime.now(timezone.utc) + timedelta(days=1)
     start = end - timedelta(days=days + 1)
-    df = get_rates_range(symbol, config.TIMEFRAME, start, end)
-    htf = get_rates_range(symbol, config.TREND_TIMEFRAME, start - timedelta(days=45), end)
+    df = get_rates_range(symbol, engine.timeframe, start, end)
+    htf = get_rates_range(symbol, config.TREND_TIMEFRAME, start - timedelta(days=45), end) if engine.trend_filter else None
     mt5.shutdown()
     if df is None or len(df) < 100:
         raise SystemExit("not enough signal-TF history (check Max bars in chart in MT5 options)")
-    df = compute_indicators(df)
-    if config.TREND_FILTER_ENABLED:
-        if htf is None or len(htf) < config.TREND_EMA_PERIOD:
-            raise SystemExit("not enough higher-TF history for the trend EMA")
-        df = attach_trend(df, compute_trend(htf))
+    if engine.trend_filter and (htf is None or len(htf) < config.TREND_EMA_PERIOD):
+        raise SystemExit("not enough higher-TF history for the trend EMA")
+    df = engine.analyse(df, htf, info)
     spread_price = history_spread(df, info.spread, info.point)
 
     def lot_fn(sl_dist):
-        return lot_for_risk(sl_dist, config.RISK_USD_PER_TRADE, info.trade_tick_size,
+        return lot_for_risk(sl_dist, engine.risk_usd, info.trade_tick_size,
                             info.trade_tick_value, info.volume_min, info.volume_max, info.volume_step)
 
     return df, spread_price, info.trade_tick_size, info.trade_tick_value, lot_fn
 
 
 def main():
+    from engines import scalper_engine
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--symbol", nargs="+", default=[config.SYMBOLS[0]],
-                    help="one or more symbols (default: first of config.SYMBOLS)")
+    ap.add_argument("--engine", choices=["scalper", "london"], default="scalper")
+    ap.add_argument("--symbol", nargs="+", help="one or more symbols (default: the engine's symbols)")
     ap.add_argument("--days", type=int, default=60)
     ap.add_argument("--csv", help="write trade list to this CSV file")
     ap.add_argument("--no-trend", action="store_true", help="disable the trend filter")
@@ -209,15 +227,26 @@ def main():
     args = ap.parse_args()
     if args.no_trend:
         config.TREND_FILTER_ENABLED = False
+        config.LDN_TREND_FILTER = False
     if args.no_session:
         config.SESSION_FILTER_ENABLED = False
+    if args.engine == "london":
+        from engines import london_engine
+        engine = london_engine()
+    else:
+        engine = scalper_engine()
+    symbols = args.symbol or list(engine.symbols)
 
     all_trades, per_symbol = [], {}
-    for symbol in args.symbol:
-        df, spread, tick_size, tick_value, lot_fn = load_history(symbol, args.days)
-        print(f"{symbol}: {len(df)} bars {df['time'].iloc[0]} -> {df['time'].iloc[-1]}, "
-              f"median spread {spread:.5g}, trend={config.TREND_FILTER_ENABLED} session={config.SESSION_FILTER_ENABLED}")
-        trades = run_backtest(df, symbol, spread, tick_size, tick_value, lot_fn)
+    for symbol in symbols:
+        df, spread, tick_size, tick_value, lot_fn = load_history(symbol, args.days, engine)
+        print(f"{engine.name} {symbol}: {len(df)} bars {df['time'].iloc[0]} -> {df['time'].iloc[-1]}, "
+              f"median spread {spread:.5g}, trend={engine.trend_filter} session={config.SESSION_FILTER_ENABLED}")
+        trades = run_backtest(df, symbol, spread, tick_size, tick_value, lot_fn,
+                              signal=engine.signal, levels=engine.levels,
+                              max_trades_per_day=engine.max_trades_per_day,
+                              max_consecutive_losses=engine.max_consecutive_losses,
+                              manage=engine.manage, be_atr=engine.breakeven_atr, trail_atr=engine.trail_atr)
         per_symbol[symbol] = summarize(trades)
         for k, v in per_symbol[symbol].items():
             print(f"{k:>14}: {v}")
@@ -231,7 +260,7 @@ def main():
         print(f"wrote {len(all_trades)} trades to {args.csv}")
     if args.telegram:
         from telegram_notifier import send_telegram
-        send_telegram(format_report(args.days, per_symbol))
+        send_telegram(format_report(args.days, per_symbol, engine.name))
         print("summary sent to Telegram")
 
 
