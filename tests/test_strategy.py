@@ -116,3 +116,15 @@ class TestCandleModes:
         b = bar(95.0, rsi=40)
         b["buy_setup_recent"], b["bull_pattern"] = True, "hammer"
         assert raw_signal(b) is None
+
+
+class TestLevelMultipliers:
+    def test_explicit_multipliers_override_config(self):
+        lv = build_levels("BUY", ask=100.0, bid=99.9, atr=2.0, sl_mult=2.0, tp_mult=4.0)
+        assert lv.sl == pytest.approx(96.0) and lv.tp == pytest.approx(108.0) and lv.sl_dist == pytest.approx(4.0)
+
+    def test_default_multipliers_read_config_at_call_time(self, monkeypatch):
+        monkeypatch.setattr(config, "SL_ATR_MULTIPLIER", 1.0)
+        monkeypatch.setattr(config, "TP_ATR_MULTIPLIER", 5.0)
+        lv = build_levels("SELL", ask=100.0, bid=99.9, atr=2.0)
+        assert lv.sl == pytest.approx(101.9) and lv.tp == pytest.approx(89.9)

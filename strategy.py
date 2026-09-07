@@ -80,9 +80,11 @@ class Levels:
     sl_dist: float
 
 
-def build_levels(side: str, ask: float, bid: float, atr: float) -> Levels:
-    sl_dist = atr * config.SL_ATR_MULTIPLIER
-    tp_dist = atr * config.TP_ATR_MULTIPLIER
+def build_levels(side: str, ask: float, bid: float, atr: float,
+                 sl_mult: float | None = None, tp_mult: float | None = None) -> Levels:
+    """ATR-based stop and target. Multipliers default to the scalper's config values at call time."""
+    sl_dist = atr * (config.SL_ATR_MULTIPLIER if sl_mult is None else sl_mult)
+    tp_dist = atr * (config.TP_ATR_MULTIPLIER if tp_mult is None else tp_mult)
     if side == "BUY":
         return Levels(side, ask, ask - sl_dist, ask + tp_dist, sl_dist)
     return Levels(side, bid, bid + sl_dist, bid - tp_dist, sl_dist)
