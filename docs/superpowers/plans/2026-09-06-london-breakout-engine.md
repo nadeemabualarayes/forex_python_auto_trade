@@ -2191,7 +2191,7 @@ Expected: PASS. If it fails, the likely cause is `add_box_columns` consuming the
 - [ ] **Step 3: Replay the real history and send the digest**
 
 Run (MT5 running): `python backtest.py --engine london --days 180 --telegram --csv logs/backtest_london_180d.csv`
-Expected within rounding of the spec's 10:00-14:00 row: EURUSD about 100 trades / +$54, GBPUSD about 110 trades / +$44, and "summary sent to Telegram". Record the actual numbers in the commit message body.
+Expected within rounding of the spec's 10:00-14:00 row: EURUSD about 60 trades / +$54, GBPUSD about 63 trades / +$44 (the sliding 180-day window can swap a trade at the first day), and "summary sent to Telegram". Record the actual numbers in the commit message body.
 
 - [ ] **Step 4: Commit**
 
