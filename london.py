@@ -2,7 +2,10 @@
 
 Box = high/low of the server day's bars between LDN_BOX_START_HOUR and LDN_BOX_END_HOUR.
 Signal = the first closed bar of the day inside [LDN_BOX_END_HOUR, LDN_WINDOW_END_HOUR) whose close
-is beyond an edge by the buffer. Exactly one such bar exists per day, so a restart cannot re-enter.
+is beyond an edge by the buffer. Exactly one bar per day carries a break, so nothing later in the
+window can re-trigger; but `SymbolTrader.last_signal_bar` is process state, so a restart inside the
+5-minute bar that follows the break bar can still re-enter once if the first trade has already
+closed, bounded by the open-position gate and the engine's daily cap.
 """
 import numpy as np
 import pandas as pd

@@ -97,6 +97,7 @@ LDN_BOX_END_HOUR = 10                    # London open on this broker (server cl
 LDN_WINDOW_END_HOUR = 14                 # entries allowed in [BOX_END, WINDOW_END)
 LDN_BUFFER_PIPS = 0.0                    # break = close beyond the edge by this many pips (0 tested best)
 LDN_MAX_BOX_ATR = 0.0                    # 0 = no box-width filter; else skip days with box > N * ATR(14)
+                                          # compared per bar against that bar's ATR (ships disabled)
 LDN_TREND_FILTER = True                  # H1 EMA200, same helper as the scalper
 LDN_SL_MODE = "atr"                      # "atr" | "box_opposite" | "box_mid"
 LDN_SL_ATR = 1.5                         # stop distance when LDN_SL_MODE == "atr"

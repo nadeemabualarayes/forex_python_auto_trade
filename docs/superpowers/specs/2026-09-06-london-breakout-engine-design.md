@@ -158,8 +158,11 @@ Stop by mode: `atr` -> entry -/+ `LDN_SL_ATR` x ATR; `box_opposite` -> box_low f
 trader records a SKIP. Target = entry +/- `LDN_TP_R` x stop distance. Sizing uses `execution.lot_for_risk`
 with the stop distance and `LDN_RISK_USD`; a zero lot is a SKIP as today.
 
-Because `first_break` is derived from the day's bars, a restart mid-day cannot produce a second entry:
-the flag is true on exactly one bar per day whatever the process saw.
+Because `first_break` is derived from the day's bars, exactly one bar per day carries a break, so
+nothing later in the window can re-trigger. That guarantee is about the flag, not about restarts:
+`SymbolTrader.last_signal_bar` is process state, so a restart inside the bar that follows the break
+bar can re-enter once if the first trade has already closed, bounded by the open-position gate and
+the engine's daily cap.
 
 Session filter: the scalper's `SESSION_*` and `TRADING_WEEKDAYS` gates still apply to every engine
 (weekdays only); the London engine's own window is the tighter gate. The news blackout applies to every
