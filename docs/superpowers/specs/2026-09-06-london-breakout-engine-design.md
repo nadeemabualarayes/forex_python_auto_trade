@@ -56,6 +56,19 @@ Findings that shaped the defaults:
 - **The edge is thin**: about $90 over six months, 0.09R per trade. The rollout has explicit kill criteria,
   and the EMA-pullback trend rule on metals (+$286 on M15, positive in all 24 variants) is the documented
   fallback.
+- **The edge depends on the spread** (measured 2026-09-07, `backtest.py --engine london --spread-points N`;
+  the backtester charges half the spread at entry, so 20 points approximates a real 1-pip round trip). MT5
+  tick history shows this demo feed quotes EURUSD/GBPUSD at 0-1 point in the London window (p90 = 1 point),
+  so the demo trial runs at the first row. A live broker charging about 1 pip is the last row.
+
+  | Spread charged | EURUSD (61 trades) | GBPUSD (62 trades) |
+  |---|---|---|
+  | 1 point (this demo feed) | +$78.64, PF 1.48 | +$47.52, PF 1.27 |
+  | 10 points (about half a pip) | +$64.27, PF 1.38 | +$4.50, PF 1.02 |
+  | 20 points (about a 1-pip broker) | -$47.79, PF 0.77 | -$35.59, PF 0.82 |
+
+  Consequence: a passing demo trial does not by itself justify running this engine on a real account; the
+  broker's actual FX spread (and any commission) must be re-costed through the same replay first.
 
 ## 3. Architecture: engine profiles
 
