@@ -3,30 +3,46 @@ import calendar
 import sys
 import time
 import traceback
+from dataclasses import replace
 
 import MetaTrader5 as mt5
 
 import config
 from analytics import pair_trades, build_analytics, trade_dicts
-from execution import init_mt5, bot_positions, trading_blockers
+from engines import build_engines, engine_names
+from execution import init_mt5, bot_positions, trading_blockers, set_known_magics
 from history import TradeStore, sync_deals, snapshot_equity
 from journal import setup_logging, log
 from news import NewsFilter
 from position_manager import manage_positions
 from reporting import Reporter
-from risk import ServerClock, get_daily_stats, breaker_reason
+from risk import ServerClock, get_daily_stats, combine, account_breaker, engine_breaker
 from publisher import PagesPublisher
-from status import build_status, with_trades, chart_block
+from status import build_status, with_trades, chart_block, engine_block
 from strategy import SymbolTrader
 from telegram_notifier import send_telegram
 from web import StatusServer
 
 
 class Bot:
-    def __init__(self, symbols, web: StatusServer | None = None, pages: PagesPublisher | None = None):
-        self.symbols = symbols
-        self.traders = {s: SymbolTrader(s) for s in symbols}
-        self.reporter = Reporter()
+    def __init__(self, symbols, web: StatusServer | None = None, pages: PagesPublisher | None = None,
+                 engines=None):
+        available = list(symbols)
+        self.engines = []
+        for e in (engines if engines is not None else build_engines()):
+            syms = tuple(s for s in e.symbols if s in available)
+            if not syms:
+                log.warning("engine %s disabled: none of %s is available", e.name, list(e.symbols))
+                continue
+            self.engines.append(replace(e, symbols=syms))
+        self.symbols = []
+        for e in self.engines:
+            for s in e.symbols:
+                if s not in self.symbols:
+                    self.symbols.append(s)
+        set_known_magics(e.magic for e in self.engines)
+        self.traders = [SymbolTrader(s, e) for e in self.engines for s in e.symbols]
+        self.reporter = Reporter(engine_names(self.engines))
         self.clock = ServerClock()
         self.web = web
         self.pages = pages
@@ -39,6 +55,7 @@ class Bot:
         self.last_chart_refresh: float | None = None
         self.started_at = time.monotonic()
         self.breaker_alerted = False
+        self.paused: dict = {}                      # engine name -> pause reason already announced
         self.no_quote_logged = False
         self.news = NewsFilter()
         self.news_alerted: str | None = None        # blackout reason already announced on Telegram
@@ -53,7 +70,7 @@ class Bot:
             return
         self.last_sync = mono
         try:
-            n = sync_deals(self.store, config.MAGIC_NUMBER, config.HISTORY_INCLUDE_ALL_DEALS)
+            n = sync_deals(self.store, [e.magic for e in self.engines], config.HISTORY_INCLUDE_ALL_DEALS)
             epoch = calendar.timegm(now.timetuple()) if now else int(time.time())
             open_pnl = sum(p.profit for p in bot_positions())
             self.account = snapshot_equity(self.store, open_pnl=open_pnl, now_epoch=epoch)
@@ -63,7 +80,7 @@ class Bot:
                 start_balance = round(self.account["balance"] - sum(t.net for t in trades), 2)
             snapshots = self.store.equity_series(since=epoch - 30 * 86400, step=3600)
             self.analytics = build_analytics(trades, start_balance, snapshots)
-            self.history = trade_dicts(trades, config.HISTORY_MAX_TRADES)
+            self.history = trade_dicts(trades, config.HISTORY_MAX_TRADES, engine_names(self.engines))
             if n:
                 log.info("history: synced %d deals, %d closed trades on record", n, len(trades))
         except Exception as e:
@@ -78,25 +95,29 @@ class Bot:
         try:
             positions = bot_positions()
             charts = {}
-            for symbol, trader in self.traders.items():
-                blk = chart_block(trader.frame(config.CHART_REFRESH_SECONDS), symbol, positions)
+            for trader in self.traders:
+                if trader.symbol in charts:
+                    continue                            # first engine listing the symbol draws it
+                blk = chart_block(trader.frame(config.CHART_REFRESH_SECONDS), trader.symbol, positions)
                 if blk is not None:
-                    charts[symbol] = blk
+                    charts[trader.symbol] = blk
             self.charts = charts
         except Exception as e:
             log.warning("chart refresh failed: %s", e)
 
-    def _publish(self, now, stats, breaker) -> None:
+    def _publish(self, now, stats, breaker, engine_stats=None) -> None:
         """Push a snapshot to the status page and (on its interval) to GitHub Pages.
         Never allowed to break trading."""
         if self.web is None and self.pages is None:
             return
         try:
             self._maybe_refresh_charts()
-            snap = build_status(now, stats, bot_positions(), self.traders.values(), breaker,
+            blocks = [engine_block(e, (engine_stats or {}).get(e.name), self.paused.get(e.name))
+                      for e in self.engines]
+            snap = build_status(now, stats, bot_positions(), self.traders, breaker,
                                 self.symbols, self.started_at, time.monotonic(),
                                 account=self.account, analytics=self.analytics, history=self.history,
-                                charts=self.charts, news=self.news.snapshot())
+                                charts=self.charts, news=self.news.snapshot(), engines=blocks)
             if self.web is not None:
                 self.web.update(snap)
             if self.pages is not None:
@@ -117,21 +138,26 @@ class Bot:
             return config.LOOP_SLEEP_SECONDS
         self.no_quote_logged = False
 
-        stats = get_daily_stats(config.MAGIC_NUMBER, now)
+        engine_stats = {e.name: get_daily_stats(e.magic, now) for e in self.engines}
+        stats = combine(engine_stats.values())
+        pairs = [(e, engine_stats[e.name]) for e in self.engines]
         self.reporter.notify_closes(stats)
-        manage_positions()
-        self.reporter.maybe_heartbeat(now, stats, self.symbols)
-        self.reporter.maybe_daily_summary(now, stats)
+        for e in self.engines:
+            manage_positions(e)
+        self.reporter.maybe_heartbeat(now, stats, self.symbols, pairs)
+        self.reporter.maybe_daily_summary(now, stats, pairs)
 
-        reason = breaker_reason(stats)
+        reason = account_breaker(stats)
         if reason:
             if not self.breaker_alerted:
+                per_engine = "".join(f"▪ {e.name}: ${s.net_pnl:.2f}\n" for e, s in pairs)
                 msg = (f"⛔ <b>Daily circuit breaker</b>\n▪ {reason}\n"
-                       f"▪ Day net: ${stats.net_pnl:.2f}\n<i>Entries paused until next server day.</i>")
+                       f"▪ Day net: ${stats.net_pnl:.2f}\n{per_engine}"
+                       f"<i>Entries paused until next server day.</i>")
                 log.warning("BREAKER: %s", reason)
                 send_telegram(msg)
                 self.breaker_alerted = True
-            self._publish(now, stats, reason)
+            self._publish(now, stats, reason, engine_stats)
             return config.BREAKER_SLEEP_SECONDS
         self.breaker_alerted = False
 
@@ -144,9 +170,26 @@ class Bot:
                           f"{config.NEWS_BLOCK_AFTER_MIN} min after.</i>")
         self.news_alerted = news_block
 
-        for trader in self.traders.values():
-            trader.step(now, stats.entries, news_block)
-        self._publish(now, stats, None)
+        for trader in self.traders:
+            e = trader.engine
+            es = engine_stats[e.name]
+            pause = engine_breaker(e, es)
+            if pause:
+                if self.paused.get(e.name) != pause:
+                    log.warning("[%s] engine paused: %s", e.name, pause)
+                    send_telegram(f"⏸ <b>{e.name} paused</b>\n▪ {pause}\n<i>Other engines keep trading.</i>")
+                    self.paused[e.name] = pause
+                continue
+            self.paused.pop(e.name, None)
+            try:
+                trader.step(now, es.entries, news_block)
+            except Exception as exc:
+                if mt5.terminal_info() is None:
+                    raise                                # terminal gone: let run() reconnect
+                log.error("[%s] %s step failed: %s\n%s", trader.symbol, e.name, exc, traceback.format_exc())
+                send_telegram(f"⚠️ <b>{e.name} error on {trader.symbol}</b> (bot still running)\n"
+                              f"<code>{type(exc).__name__}: {exc}</code>")
+        self._publish(now, stats, None, engine_stats)
         return config.LOOP_SLEEP_SECONDS
 
 
@@ -165,15 +208,23 @@ def run() -> int:
 
     A non-zero code matters because Task Scheduler only restarts a task that *failed*."""
     setup_logging()
-    symbols = init_mt5(config.SYMBOLS)
+    engines = build_engines()
+    wanted = []
+    for e in engines:
+        for s in e.symbols:
+            if s not in wanted:
+                wanted.append(s)
+    symbols = init_mt5(wanted)
     if not symbols:
         log.error("no tradable symbols, exiting with code 1 so the scheduler restarts us")
         return 1
 
-    log.info("START symbols=%s risk=$%.2f/trade cap=%d/day trend=%s session=%s news=%s",
-             symbols, config.RISK_USD_PER_TRADE, config.MAX_TRADES_PER_DAY,
-             config.TREND_FILTER_ENABLED, config.SESSION_FILTER_ENABLED, config.NEWS_FILTER_ENABLED)
-    send_telegram(f"\U0001F680 <b>Bot started</b> on {', '.join(symbols)}")
+    for e in engines:
+        log.info("START engine=%s magic=%s symbols=%s risk=$%.2f/trade cap=%d/day trend=%s",
+                 e.name, e.magic, [s for s in e.symbols if s in symbols], e.risk_usd, e.max_trades_per_day, e.trend_filter)
+    log.info("START session=%s news=%s", config.SESSION_FILTER_ENABLED, config.NEWS_FILTER_ENABLED)
+    send_telegram("\U0001F680 <b>Bot started</b>\n" + "\n".join(
+        f"▪ {e.name}: {', '.join(s for s in e.symbols if s in symbols) or 'no symbols'}" for e in engines))
     warn_if_trading_blocked()
     web = StatusServer() if config.WEB_ENABLED else None
     if web and not web.start():
@@ -182,7 +233,7 @@ def run() -> int:
     if pages and not pages.remote:
         log.warning("pages publishing disabled: no git remote found")
         pages = None
-    bot = Bot(symbols, web, pages)
+    bot = Bot(symbols, web, pages, engines)
 
     try:
         while True:
