@@ -42,19 +42,28 @@ def test_sync_filters_magic_and_uses_incremental_window(tmp_path, monkeypatch):
         return (_deal(1, 1, mt5.DEAL_ENTRY_IN, 5000), _deal(2, 2, mt5.DEAL_ENTRY_IN, 6000, magic=1))
 
     monkeypatch.setattr(history.mt5, "history_deals_get", fake_hist)
-    assert sync_deals(s, magic=777) == 1
+    assert sync_deals(s, magics=777) == 1
     assert [d.ticket for d in s.deals()] == [1]
     assert calls[0].year == 2000                       # first sync: full history
-    sync_deals(s, magic=777)
+    sync_deals(s, magics=777)
     assert calls[1] == datetime.fromtimestamp(5000, timezone.utc) - timedelta(days=1)   # overlap window
-    assert sync_deals(s, magic=777, include_all=True) == 2
+    assert sync_deals(s, magics=777, include_all=True) == 2
     assert len(s.deals()) == 2
 
 
 def test_sync_handles_none(tmp_path, monkeypatch):
     s = TradeStore(str(tmp_path / "h.db"))
     monkeypatch.setattr(history.mt5, "history_deals_get", lambda *a: None)
-    assert sync_deals(s, magic=777) == 0
+    assert sync_deals(s, magics=777) == 0
+
+
+def test_sync_accepts_several_magics(tmp_path, monkeypatch):
+    s = TradeStore(str(tmp_path / "h.db"))
+    monkeypatch.setattr(history.mt5, "history_deals_get", lambda a, b: (
+        _deal(1, 1, mt5.DEAL_ENTRY_IN, 5000), _deal(2, 2, mt5.DEAL_ENTRY_IN, 6000, magic=998888),
+        _deal(3, 3, mt5.DEAL_ENTRY_IN, 7000, magic=1)))
+    assert sync_deals(s, magics=[777, 998888]) == 2
+    assert sorted(d.magic for d in s.deals()) == [777, 998888]
 
 
 def test_equity_snapshot_and_series(tmp_path, monkeypatch):

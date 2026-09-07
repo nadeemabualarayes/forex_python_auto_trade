@@ -119,9 +119,11 @@ class TradeStore:
 
 
 # -- MT5 sync ---------------------------------------------------------------------
-def sync_deals(store: TradeStore, magic: int, include_all: bool = False) -> int:
-    """Pull deals from MT5 into the store. First run = full history; later runs overlap the
-    last day so amended commission/swap values are picked up. Returns rows written."""
+def sync_deals(store: TradeStore, magics, include_all: bool = False) -> int:
+    """Pull deals from MT5 into the store. `magics`: one magic number or an iterable of them.
+    First run = full history; later runs overlap the last day so amended commission/swap
+    values are picked up. Returns rows written."""
+    wanted = {magics} if isinstance(magics, int) else set(magics)
     last = store.last_deal_time()
     if last:
         date_from = datetime.fromtimestamp(last, timezone.utc) - timedelta(days=1)
@@ -131,7 +133,7 @@ def sync_deals(store: TradeStore, magic: int, include_all: bool = False) -> int:
     raw = mt5.history_deals_get(date_from, date_to)
     if raw is None:
         return 0
-    deals = [Deal.from_mt5(d) for d in raw if include_all or d.magic == magic]
+    deals = [Deal.from_mt5(d) for d in raw if include_all or d.magic in wanted]
     n = store.upsert_deals(deals)
     if n:
         log.debug("history: synced %d deals", n)

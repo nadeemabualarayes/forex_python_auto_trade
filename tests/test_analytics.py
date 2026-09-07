@@ -103,3 +103,13 @@ def test_build_analytics_is_json_serialisable(trades):
                       "daily", "equity_curve", "equity_snapshots"}
     assert a["summary"]["trades"] == 3 and a["equity_snapshots"][0]["equity"] == 100.0
     json.dumps(a)
+
+
+from analytics import trade_dicts  # noqa: E402
+
+
+def test_trades_carry_magic_and_engine_name(trades):
+    assert all(t.magic == 777 for t in trades)
+    rows = trade_dicts(trades, 10, {777: "scalper"})
+    assert rows[0]["engine"] == "scalper"
+    assert trade_dicts(trades, 10)[0]["engine"] == "other"

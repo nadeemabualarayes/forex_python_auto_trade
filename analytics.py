@@ -39,6 +39,7 @@ class Trade:
     duration_s: int
     hour: int            # server hour of entry
     weekday: int         # 0 = Monday
+    magic: int = 0
 
 
 def reason_name(code: int) -> str:
@@ -79,6 +80,7 @@ def pair_trades(deals, volume_tol: float = 1e-6) -> list[Trade]:
             swap=round(swap, 2), net=round(gross + commission + swap, 2),
             reason=reason_name(outs[-1].reason), duration_s=int(exit_time - entry_time),
             hour=entry_dt.hour, weekday=entry_dt.weekday(),
+            magic=int(ins[0].magic),
         ))
     trades.sort(key=lambda t: (t.exit_time, t.position_id))
     return trades
@@ -194,6 +196,12 @@ def build_analytics(trades, start_balance: float | None = None, equity_snapshots
     }
 
 
-def trade_dicts(trades, limit: int) -> list[dict]:
-    """Newest first, capped, for the history table."""
-    return [asdict(t) for t in reversed(trades[-limit:])]
+def trade_dicts(trades, limit: int, engine_names: dict | None = None) -> list[dict]:
+    """Newest first, capped, for the history table; each row is tagged with its engine name."""
+    names = engine_names or {}
+    out = []
+    for t in reversed(trades[-limit:]):
+        row = asdict(t)
+        row["engine"] = names.get(t.magic, "other")
+        out.append(row)
+    return out
