@@ -109,9 +109,38 @@ def get_daily_stats(magic: int, server_dt: datetime) -> DailyStats:
     return stats_from_deals(deals, magic, start)
 
 
-def breaker_reason(stats: DailyStats):
+def combine(stats_list) -> DailyStats:
+    """Account view across engines: sums, plus every closed deal in time order."""
+    out = DailyStats()
+    for s in stats_list:
+        out.net_pnl += s.net_pnl
+        out.entries += s.entries
+        out.wins += s.wins
+        out.losses += s.losses
+        out.closed.extend(s.closed)
+    out.closed.sort(key=lambda d: (d.time, d.ticket))
+    return out
+
+
+def account_breaker(stats: DailyStats):
+    """Account-wide pause: the combined daily loss limit."""
     if stats.net_pnl <= -config.MAX_DAILY_LOSS_USD:
         return f"daily loss ${abs(stats.net_pnl):.2f} >= limit ${config.MAX_DAILY_LOSS_USD:.2f}"
+    return None
+
+
+def engine_breaker(engine, stats: DailyStats):
+    """Per-engine pause: that engine's own loss streak against its own limit."""
+    if stats.consecutive_losses >= engine.max_consecutive_losses:
+        return f"{stats.consecutive_losses} consecutive losses"
+    return None
+
+
+def breaker_reason(stats: DailyStats):
+    """Single-engine rule kept for the backtester and older callers."""
+    reason = account_breaker(stats)
+    if reason:
+        return reason
     if stats.consecutive_losses >= config.MAX_CONSECUTIVE_LOSSES:
         return f"{stats.consecutive_losses} consecutive losses"
     return None

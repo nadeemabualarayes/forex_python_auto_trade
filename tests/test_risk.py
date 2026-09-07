@@ -52,3 +52,32 @@ def test_breaker_reasons(monkeypatch):
     assert "daily loss" in breaker_reason(DailyStats(net_pnl=-15.0))
     assert "consecutive" in breaker_reason(DailyStats(consecutive_losses=2))
     assert breaker_reason(DailyStats(consecutive_losses=1)) is None
+
+
+from types import SimpleNamespace as _NS  # noqa: E402
+
+from risk import combine, account_breaker, engine_breaker  # noqa: E402
+
+
+def test_combine_sums_and_merges_closed_deals_in_time_order():
+    a = DailyStats(net_pnl=5.0, consecutive_losses=2, entries=2, wins=1, losses=1,
+                   closed=[deal(30, mt5.DEAL_ENTRY_OUT, -1.0, ticket=3)])
+    b = DailyStats(net_pnl=-2.0, consecutive_losses=0, entries=1, wins=0, losses=1,
+                   closed=[deal(10, mt5.DEAL_ENTRY_OUT, -2.0, ticket=1), deal(40, mt5.DEAL_ENTRY_OUT, 4.0, ticket=4)])
+    c = combine([a, b])
+    assert c.net_pnl == pytest.approx(3.0) and c.entries == 3 and c.wins == 1 and c.losses == 2
+    assert [d.ticket for d in c.closed] == [1, 3, 4]
+    assert c.consecutive_losses == 0
+    assert combine([]) == DailyStats()
+
+
+def test_account_breaker_only_looks_at_daily_loss(monkeypatch):
+    monkeypatch.setattr(config, "MAX_DAILY_LOSS_USD", 30.0)
+    assert account_breaker(DailyStats(net_pnl=-30.0)) == "daily loss $30.00 >= limit $30.00"
+    assert account_breaker(DailyStats(net_pnl=-29.99, consecutive_losses=99)) is None
+
+
+def test_engine_breaker_uses_the_engine_limit():
+    engine = _NS(name="london", max_consecutive_losses=4)
+    assert engine_breaker(engine, DailyStats(consecutive_losses=4)) == "4 consecutive losses"
+    assert engine_breaker(engine, DailyStats(consecutive_losses=3, net_pnl=-1000)) is None
