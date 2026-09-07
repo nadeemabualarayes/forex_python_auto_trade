@@ -50,3 +50,24 @@ def test_scalper_levels_use_bar_atr_and_config_multipliers():
     lv = scalper_levels("BUY", 100.0, 99.9, {"atr": 2.0})
     assert lv.entry == 100.0
     assert lv.sl == pytest.approx(100.0 - 2.0 * config.SL_ATR_MULTIPLIER)
+
+
+def test_london_profile_reads_its_own_config(monkeypatch):
+    from engines import london_engine
+    from london import london_analyse, london_signal, london_levels
+    monkeypatch.setattr(config, "LDN_RISK_USD", 3.0, raising=False)
+    e = london_engine()
+    assert e.name == "london" and e.magic == config.LDN_MAGIC_NUMBER and e.comment == "LDN"
+    assert e.symbols == tuple(config.LDN_SYMBOLS) and e.timeframe == config.LDN_TIMEFRAME
+    assert e.lookback == config.LDN_RATES_LOOKBACK and e.trend_filter == config.LDN_TREND_FILTER
+    assert e.analyse is london_analyse and e.signal is london_signal and e.levels is london_levels
+    assert e.risk_usd == 3.0 and e.max_trades_per_day == config.LDN_MAX_TRADES_PER_DAY
+    assert e.max_consecutive_losses == config.LDN_MAX_CONSECUTIVE_LOSSES
+    assert (e.manage, e.breakeven_atr, e.trail_atr) == (config.LDN_MANAGE_POSITIONS, config.LDN_BREAKEVEN_ATR, config.LDN_TRAIL_ATR)
+
+
+def test_build_engines_includes_london_when_enabled(monkeypatch):
+    monkeypatch.setattr(config, "LDN_ENABLED", True, raising=False)
+    engines = build_engines()
+    assert [e.name for e in engines] == ["scalper", "london"]
+    assert engine_names(engines) == {config.MAGIC_NUMBER: "scalper", config.LDN_MAGIC_NUMBER: "london"}

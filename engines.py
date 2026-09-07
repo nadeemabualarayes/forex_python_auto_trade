@@ -10,6 +10,7 @@ from typing import Callable
 import config
 from strategy import generate_signal, build_levels
 from technicals import compute_indicators, compute_trend, attach_trend
+from london import london_analyse, london_signal, london_levels
 
 
 @dataclass(frozen=True)
@@ -57,9 +58,24 @@ def scalper_engine() -> Engine:
     )
 
 
+def london_engine() -> Engine:
+    return Engine(
+        name="london", magic=config.LDN_MAGIC_NUMBER, comment="LDN",
+        symbols=tuple(config.LDN_SYMBOLS), timeframe=config.LDN_TIMEFRAME, lookback=config.LDN_RATES_LOOKBACK,
+        trend_filter=config.LDN_TREND_FILTER,
+        analyse=london_analyse, signal=london_signal, levels=london_levels,
+        risk_usd=config.LDN_RISK_USD, max_trades_per_day=config.LDN_MAX_TRADES_PER_DAY,
+        max_consecutive_losses=config.LDN_MAX_CONSECUTIVE_LOSSES,
+        manage=config.LDN_MANAGE_POSITIONS, breakeven_atr=config.LDN_BREAKEVEN_ATR, trail_atr=config.LDN_TRAIL_ATR,
+    )
+
+
 def build_engines() -> list:
     """Enabled engines in priority order (scalper first)."""
-    return [scalper_engine()]
+    engines = [scalper_engine()]
+    if getattr(config, "LDN_ENABLED", False):
+        engines.append(london_engine())
+    return engines
 
 
 def engine_names(engines) -> dict:
