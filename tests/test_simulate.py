@@ -35,3 +35,19 @@ def test_random_path_stops_after_requested_trades(tmp_path):
     # deterministic for a fixed seed
     again = simulate.run_simulation(send_real_telegram=False, log_dir=str(tmp_path / "b"), trades=4, seed=1)
     assert [d.profit for d in again["deals"]] == [d.profit for d in result["deals"]]
+
+
+def test_random_path_can_run_both_engines(tmp_path):
+    import config
+    result = simulate.run_simulation(send_real_telegram=False, log_dir=str(tmp_path), trades=4, seed=1, london=True)
+    assert result["engines"] == ["scalper", "london"]
+    magics = {d.magic for d in result["deals"]}
+    assert config.MAGIC_NUMBER in magics                    # scalper still trades
+    assert magics <= {config.MAGIC_NUMBER, config.LDN_MAGIC_NUMBER}
+    outs = [d for d in result["deals"] if d.entry == simulate._real_mt5.DEAL_ENTRY_OUT]
+    assert len(outs) >= 4                                   # two engines may close on the same bar
+
+
+def test_default_run_keeps_the_scalper_alone(tmp_path):
+    result = simulate.run_simulation(send_real_telegram=False, log_dir=str(tmp_path))
+    assert result["engines"] == ["scalper"]

@@ -221,7 +221,7 @@ class FakeMT5:
 
 # -- Wiring ---------------------------------------------------------------------------
 def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join("logs", "sim"),
-                   trades: int | None = None, seed: int = 1) -> dict:
+                   trades: int | None = None, seed: int = 1, london: bool = False) -> dict:
     """Scripted scenario by default; with `trades`, a random multi-day path that stops once
     that many positions have closed (or the path runs out)."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -242,7 +242,8 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
     # and a tiny daily-loss limit so the account circuit breaker trips as soon as the day nets
     # negative -- under the hybrid risk policy a loss streak alone only pauses that one engine,
     # so the account breaker is what demonstrates the circuit-breaker path here.
-    overrides = {"CANDLE_MODE": "off", "NEWS_FILTER_ENABLED": False}     # no network in a dry run
+    overrides = {"CANDLE_MODE": "off", "NEWS_FILTER_ENABLED": False,     # no network in a dry run
+                 "LDN_ENABLED": london, "LDN_SYMBOLS": [SYMBOL]}           # London engine on the scripted symbol
     if not trades:
         overrides.update({"MANAGE_POSITIONS": True, "SESSION_START_HOUR": 0, "SESSION_END_HOUR": 24,
                           "MAX_CONSECUTIVE_LOSSES": 2, "MAX_DAILY_LOSS_USD": 0.1})
@@ -285,7 +286,7 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
             with open(config.TRADE_JOURNAL, newline="", encoding="utf-8") as f:
                 rows = list(csv.DictReader(f))
         return {"journal": rows, "telegram": sent, "breaker_tripped": breaker_tripped,
-                "deals": fake.deals, "log_dir": log_dir}
+                "deals": fake.deals, "log_dir": log_dir, "engines": [e.name for e in bot.engines]}
     finally:
         config.__dict__.update(saved)
 
@@ -295,8 +296,9 @@ def main_cli():
     ap.add_argument("--quiet", action="store_true", help="do not send Telegram messages")
     ap.add_argument("--trades", type=int, help="random multi-day path; stop after this many closed trades")
     ap.add_argument("--seed", type=int, default=1, help="random seed for --trades")
+    ap.add_argument("--london", action="store_true", help="also run the London engine on the simulated symbol")
     args = ap.parse_args()
-    res = run_simulation(send_real_telegram=not args.quiet, trades=args.trades, seed=args.seed)
+    res = run_simulation(send_real_telegram=not args.quiet, trades=args.trades, seed=args.seed, london=args.london)
     print("\n== journal ==")
     for r in res["journal"]:
         print(f"{r['time']}  {r['event']:<9} {r['side']:<4} lot={r['lot']:<5} price={r['price']:<8} "
