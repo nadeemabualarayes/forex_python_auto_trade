@@ -2315,7 +2315,7 @@ and the overrides to:
                  "LDN_ENABLED": london, "LDN_SYMBOLS": [SYMBOL]}           # London engine on the scripted symbol
     if not trades:
         overrides.update({"MANAGE_POSITIONS": True, "SESSION_START_HOUR": 0, "SESSION_END_HOUR": 24,
-                          "MAX_CONSECUTIVE_LOSSES": 2, "MAX_DAILY_LOSS_USD": 15.0})
+                          "MAX_CONSECUTIVE_LOSSES": 2, "MAX_DAILY_LOSS_USD": 0.1})
     saved = {k: getattr(config, k) for k in overrides}
 ```
 
