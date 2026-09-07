@@ -1,6 +1,6 @@
 # London breakout engine design (2026-09-06)
 
-Draft for review. Adds a second, independent trading engine to the bot: a London-open range breakout
+Implemented 2026-09-07 (plan: docs/superpowers/plans/2026-09-06-london-breakout-engine.md); demo deployment pending. Adds a second, independent trading engine to the bot: a London-open range breakout
 ("Asian box" breakout) on EURUSD and GBPUSD, running under its own magic number next to the existing
 pin-bar mean-reversion scalper, which stays exclusively on XAUUSD and XAGUSD. Chosen in chat on
 2026-09-06 because the London open is a clean institutional liquidity catalyst and the rule confines

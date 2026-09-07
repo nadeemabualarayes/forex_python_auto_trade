@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project Overview
-Automated algorithmic trading bot bridging Python with MetaTrader 5 (MT5). The engine runs an intraday mean-reversion scalper (Bollinger touch + RSI extreme) on several symbols at once (`config.SYMBOLS`, Gold `XAUUSD` and Silver `XAGUSD` by default) with an H1 EMA200 trend filter, a server-time session filter, dynamic ATR risk allocation, account-wide circuit breakers, breakeven/trailing stops, spread protection, a file journal, and Telegram telemetry.
+Automated algorithmic trading bot bridging Python with MetaTrader 5 (MT5). The engine runs an intraday mean-reversion scalper (Bollinger touch + RSI extreme) on several symbols at once (`config.SYMBOLS`, Gold `XAUUSD` and Silver `XAGUSD` by default) with an H1 EMA200 trend filter, a server-time session filter, dynamic ATR risk allocation, account-wide circuit breakers, breakeven/trailing stops, spread protection, a file journal, and Telegram telemetry. A second engine, the London-open range breakout (`london.py`, magic 998888, EURUSD/GBPUSD by default), runs in the same loop under its own `Engine` profile (`engines.py`).
 
 ## System Architecture & Flow
 ```text
@@ -15,10 +15,12 @@ MT5 Terminal <──────────────────────
         ├─ position_manager.manage_positions()   breakeven then ATR trail on open bot positions
         ├─ reporting.maybe_heartbeat / maybe_daily_summary
         ├─ risk.breaker_reason()         pause entries on daily loss / loss streak
+        ├─ risk.account_breaker / engine_breaker   account-wide daily loss pauses all; loss streak pauses one engine
         ├─ news.NewsFilter               Forex Factory weekly JSON (USD High), UTC wall clock; refresh every 4 h, cache on failure
-        └─ strategy.SymbolTrader.step()  per symbol: position? session? news blackout? cap? spread? -> signal -> order
-                 └─ candles.py  bull_pattern/bear_pattern per bar; config.CANDLE_MODE off / confirm (setup + pattern) / only
-                 └─ technicals.py  ATR/BB/RSI + setup flags + candlestick patterns on M5, EMA200 on H1 (attach_trend uses last *closed* H1 bar)
+        └─ engines.build_engines()      Engine profiles: scalper (BB+RSI pin-bar, M5) and london (box breakout, M5)
+             └─ strategy.SymbolTrader.step()  per engine x symbol: position? session? news? engine cap? spread? -> signal -> order
+                      ├─ scalper: candles.py + technicals.py (M5 BB/RSI/ATR, H1 EMA200)
+                      └─ london:  london.py  Asian box 00:00-10:00 server, first break 10:00-14:00, ATR stop, 2R
         ├─ Bot._maybe_sync_history()     every 60 s: history.sync_deals (MT5 deals -> logs/history.db), equity snapshot,
         │                                analytics.pair_trades/build_analytics cached on the Bot
         ├─ Bot._maybe_refresh_charts()   every 60 s: SymbolTrader.frame() -> status.chart_block (candles, bands, RSI, patterns)
@@ -28,7 +30,7 @@ MT5 Terminal <──────────────────────
         telegram_notifier.py
         web/index.html  dashboard (Chart.js, KPI tiles, trade history) polling status.json every 5 s
 run_bot.cmd + install_task.ps1   Task Scheduler "ForexBot": start at logon, restart on non-zero exit (-Restart / -Stop / -Uninstall)
-simulate.py  dry run: real Bot loop + FakeMT5 + scripted price path (logs/sim/, Telegram prefixed SIMULATION)
+simulate.py  dry run: real Bot loop + FakeMT5 + scripted price path (logs/sim/, Telegram prefixed SIMULATION); --london also runs the London engine on the simulated symbol
 backtest.py  standalone replay of strategy.generate_signal over MT5 history (same filters/sizing/breakers/trailing)
 ```
 
@@ -38,12 +40,13 @@ backtest.py  standalone replay of strategy.generate_signal over MT5 history (sam
 - Every MT5 call that can return `None` is guarded. Symbols without a live tick (`tick.time == 0`) are skipped.
 - One entry attempt per closed candle per symbol (`SymbolTrader.last_signal_bar`), whether it fills or is rejected.
 - Pure logic lives in plain functions (`strategy.generate_signal`, `position_manager.next_stop`, `execution.lot_for_risk`, `execution.trading_blockers`, `risk.stats_from_deals`, `backtest.run_backtest`) so it is testable without a terminal.
+- Each engine has its own magic number; positions, deals, stats, journal notes and dashboard rows are keyed by it. `execution.KNOWN_MAGICS` lists every running engine.
 
 ## Commands
 - Run bot: `python main.py`
 - Tests: `python -m pytest tests -q`
-- Dry run: `python simulate.py [--quiet] [--trades N --seed S]` (N closed trades on a random multi-day path)
-- Backtest: `python backtest.py --symbol XAUUSD [XAGUSD ...] --days 60 [--no-trend] [--no-session] [--csv out.csv] [--telegram]` (`--telegram` sends the per-symbol digest to the bot chat)
+- Dry run: `python simulate.py [--quiet] [--trades N --seed S] [--london]` (N closed trades on a random multi-day path)
+- Backtest: `python backtest.py [--engine scalper|london] [--symbol XAUUSD ...] --days 60 [--no-trend] [--no-session] [--csv out.csv] [--telegram]` (`--telegram` sends the per-symbol digest to the bot chat)
 
 ## Design notes
 See `docs/superpowers/specs/2026-09-06-multi-symbol-enhancements-design.md`.
