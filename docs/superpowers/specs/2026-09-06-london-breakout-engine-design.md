@@ -1,6 +1,6 @@
 # London breakout engine design (2026-09-06)
 
-Implemented 2026-09-07 (plan: docs/superpowers/plans/2026-09-06-london-breakout-engine.md); demo deployment pending. Adds a second, independent trading engine to the bot: a London-open range breakout
+Implemented 2026-09-07 (plan: docs/superpowers/plans/2026-09-06-london-breakout-engine.md); deployed to the demo bot on 2026-09-07. Adds a second, independent trading engine to the bot: a London-open range breakout
 ("Asian box" breakout) on EURUSD and GBPUSD, running under its own magic number next to the existing
 pin-bar mean-reversion scalper, which stays exclusively on XAUUSD and XAGUSD. Chosen in chat on
 2026-09-06 because the London open is a clean institutional liquidity catalyst and the rule confines
@@ -261,7 +261,7 @@ Integration: `python simulate.py --trades 40` with both engines enabled; `python
 1. Land the engine-profile refactor first (scalper behaviour identical: same tests, same journal rows).
 2. Land the London engine, run the backtest digest to Telegram, dry-run with `simulate.py`.
 3. Deploy to the demo bot (`install_task.ps1 -Restart`), both engines on, London on EURUSD and GBPUSD.
-4. Four-week trial. Disable the London engine (`LDN_ENABLED = False`) if, after 40 closed trades, its
+4. Four-week trial (deployed to the demo bot on 2026-09-07 with both engines). Disable the London engine (`LDN_ENABLED = False`) if, after 40 closed trades, its
    profit factor is below 0.9 or its drawdown exceeds $80, and fall back to the EMA-pullback trend engine
    design for the next iteration.
 
