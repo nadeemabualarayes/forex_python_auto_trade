@@ -68,6 +68,10 @@
   .sym .name { font-weight: 600; } .sym .state { color: var(--text-2); margin-top: 4px; }
   .sym .bar { color: var(--text-3); font-size: 12px; margin-top: 2px; }
   .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-2); }
+  .engines { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+  .engines .eng { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--text-2); }
+  .engines .eng b { color: var(--text); }
+  .engines .eng.paused { border-color: #c96; }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
   select, .btn { font: inherit; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
   .btn { cursor: pointer; } .btn:hover { border-color: var(--text-3); }
@@ -108,6 +112,7 @@
     <div class="tile"><div class="label">Max drawdown</div><div class="value" id="dd">—</div><div class="sub" id="dd-sub">peak to trough</div></div>
     <div class="tile"><div class="label">Open P&amp;L</div><div class="value" id="open-pnl">—</div><div class="sub" id="open-count">no positions</div></div>
   </div>
+  <div id="engine-strip" class="engines"></div>
 
   <section>
     <h2>Performance <span class="muted" id="perf-note"></span></h2>
@@ -178,7 +183,7 @@
     <h2>Open positions</h2>
     <div class="card">
       <table id="positions">
-        <thead><tr><th>Symbol</th><th>Side</th><th class="num">Lots</th><th class="num">Entry</th>
+        <thead><tr><th>Symbol</th><th>Engine</th><th>Side</th><th class="num">Lots</th><th class="num">Entry</th>
           <th class="num">SL</th><th class="num">TP</th><th class="num">P&amp;L</th><th class="num">Ticket</th></tr></thead>
         <tbody></tbody>
       </table>
@@ -192,13 +197,14 @@
       <div class="filters">
         <span>Filter</span>
         <select id="f-symbol"><option value="">All symbols</option></select>
+        <select id="f-engine"><option value="">All engines</option></select>
         <select id="f-side"><option value="">Both sides</option><option>BUY</option><option>SELL</option></select>
         <select id="f-reason"><option value="">All exits</option></select>
         <span id="f-count"></span>
       </div>
       <table id="history">
         <thead><tr>
-          <th class="sort" data-k="exit_time">Closed</th><th class="sort" data-k="symbol">Symbol</th><th class="sort" data-k="side">Side</th>
+          <th class="sort" data-k="exit_time">Closed</th><th class="sort" data-k="symbol">Symbol</th><th class="sort" data-k="engine">Engine</th><th class="sort" data-k="side">Side</th>
           <th class="sort num" data-k="volume">Lots</th><th class="sort num" data-k="entry_price">Entry</th><th class="sort num" data-k="exit_price">Exit</th>
           <th class="sort num" data-k="duration_s">Hold</th><th class="sort" data-k="reason">Reason</th>
           <th class="sort num" data-k="gross">Gross</th><th class="sort num" data-k="commission">Costs</th><th class="sort num" data-k="net">Net</th>
@@ -336,7 +342,7 @@
   }
 
   // ---------- tables ----------
-  const hist = { sortKey: "exit_time", dir: -1, shown: 50, symbol: "", side: "", reason: "" };
+  const hist = { sortKey: "exit_time", dir: -1, shown: 50, symbol: "", side: "", reason: "", engine: "" };
   function statRow(name, s) {
     return `<tr><td>${esc(name)}</td><td class="num">${s.trades}</td><td class="num">${s.win_rate}%</td>
       <td class="num ${signClass(s.net)}">${money(s.net)}</td><td class="num">${pfText(s.profit_factor)}</td>
@@ -363,7 +369,8 @@
     list = list || [];
     fillSelect("f-symbol", [...new Set(list.map(t => t.symbol))].sort());
     fillSelect("f-reason", [...new Set(list.map(t => t.reason))].sort());
-    let rows = list.filter(t => (!hist.symbol || t.symbol === hist.symbol) && (!hist.side || t.side === hist.side) && (!hist.reason || t.reason === hist.reason));
+    fillSelect("f-engine", [...new Set(list.map(t => t.engine || "other"))].sort());
+    let rows = list.filter(t => (!hist.symbol || t.symbol === hist.symbol) && (!hist.side || t.side === hist.side) && (!hist.reason || t.reason === hist.reason) && (!hist.engine || (t.engine || "other") === hist.engine));
     const k = hist.sortKey;
     rows.sort((x, y) => (x[k] > y[k] ? 1 : x[k] < y[k] ? -1 : 0) * hist.dir);
     const net = rows.reduce((s, t) => s + t.net, 0);
@@ -371,7 +378,7 @@
     $("hist-note").textContent = list.length ? `last ${list.length} closed trades` : "";
     const shown = rows.slice(0, hist.shown);
     $("history").querySelector("tbody").innerHTML = shown.map(t => `
-      <tr><td>${fmtTime(t.exit_time)}</td><td>${esc(t.symbol)}</td><td>${esc(t.side)}</td><td class="num">${t.volume}</td>
+      <tr><td>${fmtTime(t.exit_time)}</td><td>${esc(t.symbol)}</td><td><span class="tag">${esc(t.engine || "other")}</span></td><td>${esc(t.side)}</td><td class="num">${t.volume}</td>
       <td class="num">${price(t.entry_price)}</td><td class="num">${price(t.exit_price)}</td><td class="num">${fmtDur(t.duration_s)}</td>
       <td><span class="tag">${esc(t.reason)}</span></td><td class="num ${signClass(t.gross)}">${money(t.gross)}</td>
       <td class="num">${money(t.commission + t.swap)}</td><td class="num ${signClass(t.net)}"><b>${money(t.net)}</b></td></tr>`).join("");
@@ -383,7 +390,7 @@
     if (hist.sortKey === th.dataset.k) hist.dir = -hist.dir; else { hist.sortKey = th.dataset.k; hist.dir = th.dataset.k === "exit_time" ? -1 : 1; }
     if (lastStatus) renderHistory(lastStatus.history);
   }));
-  ["symbol", "side", "reason"].forEach(f => $("f-" + f).addEventListener("change", e => { hist[f] = e.target.value; hist.shown = 50; if (lastStatus) renderHistory(lastStatus.history); }));
+  ["symbol", "side", "reason", "engine"].forEach(f => $("f-" + f).addEventListener("change", e => { hist[f] = e.target.value; hist.shown = 50; if (lastStatus) renderHistory(lastStatus.history); }));
   $("more-btn").addEventListener("click", () => { hist.shown += 50; if (lastStatus) renderHistory(lastStatus.history); });
 
   // ---------- candle panels ----------
@@ -486,6 +493,10 @@
     const net = day.net_pnl || 0;
     setVal("net", money(net), signClass(net));
     $("net-sub").textContent = `${day.wins ?? 0}W / ${day.losses ?? 0}L · entries ${day.entries ?? 0}/${day.max_entries ?? "—"} · limit −$${day.max_daily_loss ?? "—"}`;
+    $("engine-strip").innerHTML = (s.engines || []).map(e => `
+      <div class="eng ${e.paused ? "paused" : ""}"><b>${esc(e.name)}</b> · ${esc((e.symbols || []).join(", "))} ·
+        entries ${e.entries}/${e.max_entries} · net ${money(e.net_pnl)} · streak ${e.consecutive_losses}/${e.max_consecutive_losses}
+        ${e.paused ? " · <b>paused:</b> " + esc(e.paused) : ""}</div>`).join("");
     if (sum && sum.trades) {
       setVal("total", money(sum.net), signClass(sum.net));
       $("total-sub").textContent = `${sum.trades} trades · costs ${money(sum.total_commission + sum.total_swap)}`;
@@ -513,13 +524,13 @@
     renderCandles(s.charts);
 
     $("sym-cards").innerHTML = (s.traders || []).map(t => `
-      <div class="sym"><div class="name">${esc(t.symbol)} ${t.state === "watching" ? '<span class="tag">watching</span>' : ""}</div>
+      <div class="sym"><div class="name">${esc(t.symbol)} <span class="tag">${esc(t.engine || "scalper")}</span> ${t.state === "watching" ? '<span class="tag">watching</span>' : ""}</div>
         <div class="state">${esc(t.state)}</div>
         <div class="bar">${t.last_signal_bar ? "last signal bar " + esc(t.last_signal_bar) : "no signal yet"}</div></div>`).join("") || '<div class="empty">No symbols</div>';
 
     const pos = s.positions || [];
     $("positions").querySelector("tbody").innerHTML = pos.map(p => `
-      <tr><td>${esc(p.symbol)}</td><td>${esc(p.side)}</td><td class="num">${p.volume}</td><td class="num">${price(p.price_open)}</td>
+      <tr><td>${esc(p.symbol)}</td><td><span class="tag">${esc(p.engine || "other")}</span></td><td>${esc(p.side)}</td><td class="num">${p.volume}</td><td class="num">${price(p.price_open)}</td>
       <td class="num">${p.sl ? price(p.sl) : "—"}</td><td class="num">${p.tp ? price(p.tp) : "—"}</td><td class="num ${signClass(p.profit)}">${money(p.profit)}</td><td class="num">${p.ticket}</td></tr>`).join("");
     $("positions-empty").style.display = pos.length ? "none" : "";
 
