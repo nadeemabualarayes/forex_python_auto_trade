@@ -169,3 +169,22 @@ def test_london_engine_replays_one_box_break_per_day(monkeypatch):
     assert t.side == "BUY" and t.entry == pytest.approx(1.1030)
     assert t.sl == pytest.approx(1.1020) and t.tp == pytest.approx(1.1050) and t.reason == "TP"
     assert t.pnl == pytest.approx((1.1050 - 1.1030) / 0.00001 * 1.0 * 0.01)
+
+
+def test_run_backtest_records_segment_context(no_filters):
+    # same BUY as the end-to-end test: signal bar closes 1.0 below the band with atr 2 -> penetration 0.5 ATR;
+    # risk at SL = 3.0 / 0.01 * 0.1 * 0.1 = $3, pnl $6 -> r = 2.0
+    df = frame([(100, 101, 99, 100), (99, 99.5, 88, 89), (100, 101, 99, 100), (100, 107, 99.5, 106)])
+    df["atr"], df["lower_band"], df["upper_band"] = 2.0, 90.0, 110.0
+    df["rsi"] = [50, 20, 50, 50]
+    t = run_backtest(df, "X", spread_price=0.0, tick_size=0.01, tick_value=0.1, lot_fn=lambda d: 0.1)[0]
+    assert t.atr == 2.0
+    assert t.penetration == pytest.approx(0.5)
+    assert t.r == pytest.approx(2.0)
+
+
+def test_telegram_chunks_split_on_blank_lines_within_limit():
+    from backtest import telegram_chunks
+    text = "A" * 50 + "\n\n" + "B" * 50 + "\n\n" + "C" * 50
+    assert telegram_chunks(text, limit=120) == ["A" * 50 + "\n\n" + "B" * 50, "C" * 50]
+    assert telegram_chunks(text, limit=1000) == [text]

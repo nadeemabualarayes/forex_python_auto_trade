@@ -1,15 +1,19 @@
 """Replay the live signal code over MT5 history.
 
-    python backtest.py --symbol XAUUSD [XAGUSD ...] --days 60 [--csv out.csv] [--telegram]
+    python backtest.py --symbol XAUUSD [XAGUSD ...] --days 60 [--csv out.csv] [--segments] [--telegram]
 
 Simulates: trend + session filters, daily trade cap, daily loss / loss-streak breaker,
 ATR SL/TP resolved against later highs/lows (SL wins if both hit in one bar),
 one position at a time, entry at next bar open +/- half spread.
 Breakeven + ATR trailing stop are applied on each bar close (config.MANAGE_POSITIONS).
 Not simulated: slippage, commission, swap.
+--segments adds the segmented digest (segments.py): session, direction, ATR regime, month,
+news distance, Bollinger penetration and their cross-tabs, written to LOG_DIR too.
 """
 import argparse
 import csv
+import os
+import time
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta, timezone
 
@@ -35,6 +39,9 @@ class SimTrade:
     exit: float = 0.0
     reason: str = ""
     pnl: float = 0.0
+    atr: float = None            # signal-bar ATR (volatility regime)
+    penetration: float = None    # signal-bar close beyond the Bollinger band, in ATR units
+    r: float = None              # pnl / risk at the initial stop
 
 
 # -- Pure simulation ------------------------------------------------------------
@@ -123,12 +130,25 @@ def run_backtest(df: pd.DataFrame, symbol: str, spread_price: float, tick_size: 
         j, px, reason = res
         move = (px - lv.entry) if side == "BUY" else (lv.entry - px)
         pnl = move / tick_size * tick_value * lot
+        risk = lv.sl_dist / tick_size * tick_value * lot
         trades.append(SimTrade(symbol, side, t, lv.entry, lv.sl, lv.tp, lot,
-                               pd.Timestamp(times[j]), px, reason, round(pnl, 2)))
+                               pd.Timestamp(times[j]), px, reason, round(pnl, 2),
+                               atr=float(bar["atr"]), penetration=band_penetration(side, bar),
+                               r=round(pnl / risk, 3) if risk > 0 else None))
         pnl_today += pnl
         streak = streak + 1 if pnl < 0 else 0
         i = j + 1                                       # next signal bar is the closing bar
     return trades
+
+
+def band_penetration(side: str, bar) -> float | None:
+    """How far the signal bar closed beyond its Bollinger band, in ATR units (None without bands)."""
+    atr = bar.get("atr")
+    band = bar.get("lower_band" if side == "BUY" else "upper_band")
+    if atr is None or band is None or not atr or np.isnan(atr) or np.isnan(band):
+        return None
+    beyond = (band - bar["close"]) if side == "BUY" else (bar["close"] - band)
+    return round(max(0.0, float(beyond) / float(atr)), 3)
 
 
 def summarize(trades: list) -> dict:
@@ -212,11 +232,13 @@ def load_history(symbol: str, days: int, engine=None, spread_points: float = Non
     start = end - timedelta(days=days + 1)
     df = get_rates_range(symbol, engine.timeframe, start, end)
     htf = get_rates_range(symbol, config.TREND_TIMEFRAME, start - timedelta(days=45), end) if engine.trend_filter else None
-    mt5.shutdown()
     if df is None or len(df) < 100:
         raise SystemExit("not enough signal-TF history (check Max bars in chart in MT5 options)")
     if engine.trend_filter and (htf is None or len(htf) < config.TREND_EMA_PERIOD):
         raise SystemExit("not enough higher-TF history for the trend EMA")
+    tick = mt5.symbol_info_tick(symbol)
+    server_offset_s = (tick.time - time.time()) if tick is not None and tick.time else 0.0
+    mt5.shutdown()
     df = engine.analyse(df, htf, info)
     spread_price = run_spread(df, info.spread, info.point, spread_points)
 
@@ -224,7 +246,47 @@ def load_history(symbol: str, days: int, engine=None, spread_points: float = Non
         return lot_for_risk(sl_dist, engine.risk_usd, info.trade_tick_size,
                             info.trade_tick_value, info.volume_min, info.volume_max, info.volume_step)
 
-    return df, spread_price, info.trade_tick_size, info.trade_tick_value, lot_fn
+    return df, spread_price, info.trade_tick_size, info.trade_tick_value, lot_fn, server_offset_s
+
+
+def cached_calendar() -> list:
+    """High-impact events from the news cache in LOG_DIR (usually only the current week)."""
+    try:
+        from news import NewsFilter
+        return list(NewsFilter().events)
+    except Exception:
+        return []
+
+
+def segment_report(symbol: str, days: int, trades: list, df: pd.DataFrame, engine, server_offset_s: float) -> str:
+    """Build, print and save the segmented digest; returns its text."""
+    from segments import build_digest, format_digest, atr_thresholds
+    digest = build_digest(trades, atr_thresholds=atr_thresholds(df["atr"]), events=cached_calendar(),
+                          news_before_s=config.NEWS_BLOCK_BEFORE_MIN * 60, news_after_s=config.NEWS_BLOCK_AFTER_MIN * 60,
+                          server_offset_s=server_offset_s)
+    text = format_digest(symbol, days, digest)
+    print(text)
+    os.makedirs(config.LOG_DIR, exist_ok=True)
+    path = os.path.join(config.LOG_DIR, f"backtest_{engine.name}_{symbol}_{days}d_segments.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    print(f"digest written to {path}")
+    return text
+
+
+def telegram_chunks(text: str, limit: int = 3800) -> list:
+    """Split a digest on blank lines into pieces that fit one Telegram message."""
+    chunks, current = [], ""
+    for block in text.split("\n\n"):
+        candidate = block if not current else current + "\n\n" + block
+        if len(candidate) > limit and current:
+            chunks.append(current)
+            current = block
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def main():
@@ -238,7 +300,9 @@ def main():
     ap.add_argument("--no-session", action="store_true", help="disable the session filter")
     ap.add_argument("--spread-points", type=float,
                     help="charge this spread in points instead of the history/live spread")
-    ap.add_argument("--telegram", action="store_true", help="send the summary to the Telegram chat")
+    ap.add_argument("--segments", action="store_true",
+                    help="segmented digest (session/direction/ATR/month/news/penetration), also written to LOG_DIR")
+    ap.add_argument("--telegram", action="store_true", help="send the summary (and digest) to the Telegram chat")
     args = ap.parse_args()
     if args.no_trend:
         config.TREND_FILTER_ENABLED = False
@@ -252,9 +316,9 @@ def main():
         engine = scalper_engine()
     symbols = args.symbol or list(engine.symbols)
 
-    all_trades, per_symbol = [], {}
+    all_trades, per_symbol, digests = [], {}, {}
     for symbol in symbols:
-        df, spread, tick_size, tick_value, lot_fn = load_history(symbol, args.days, engine, args.spread_points)
+        df, spread, tick_size, tick_value, lot_fn, offset = load_history(symbol, args.days, engine, args.spread_points)
         source = "override" if args.spread_points is not None else "history"
         print(f"{engine.name} {symbol}: {len(df)} bars {df['time'].iloc[0]} -> {df['time'].iloc[-1]}, "
               f"spread {spread:.5g} ({source}), trend={engine.trend_filter} session={config.SESSION_FILTER_ENABLED}")
@@ -266,6 +330,8 @@ def main():
         per_symbol[symbol] = summarize(trades)
         for k, v in per_symbol[symbol].items():
             print(f"{k:>14}: {v}")
+        if args.segments:
+            digests[symbol] = segment_report(symbol, args.days, trades, df, engine, offset)
         all_trades.extend(trades)
     if args.csv:
         with open(args.csv, "w", newline="", encoding="utf-8") as f:
@@ -277,6 +343,9 @@ def main():
     if args.telegram:
         from telegram_notifier import send_telegram
         send_telegram(format_report(args.days, per_symbol, engine=engine))
+        for symbol, text in digests.items():
+            for chunk in telegram_chunks(text):
+                send_telegram(f"<pre>{chunk}</pre>")
         print("summary sent to Telegram")
 
 

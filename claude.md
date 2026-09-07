@@ -45,7 +45,7 @@ backtest.py  standalone replay of strategy.generate_signal over MT5 history (sam
 - Run bot: `python main.py`
 - Tests: `python -m pytest tests -q`
 - Dry run: `python simulate.py [--quiet] [--trades N --seed S] [--london]` (N closed trades on a random multi-day path)
-- Backtest: `python backtest.py [--engine scalper|london] [--symbol XAUUSD ...] --days 60 [--no-trend] [--no-session] [--csv out.csv] [--telegram]` (`--telegram` sends the per-symbol digest to the bot chat)
+- Backtest: `python backtest.py [--engine scalper|london] [--symbol XAUUSD ...] --days 60 [--no-trend] [--no-session] [--csv out.csv] [--segments] [--telegram]` (`--segments` = segmented digest from `segments.py`, saved to logs/; `--telegram` sends the per-symbol summary and digest to the bot chat)
 
 ## Design notes
 See `docs/superpowers/specs/2026-09-06-multi-symbol-enhancements-design.md`.
