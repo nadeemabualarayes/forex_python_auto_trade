@@ -6,7 +6,6 @@ from datetime import datetime
 import numpy as np
 
 import config
-from technicals import compute_indicators, compute_trend, attach_trend
 from execution import get_rates, spread_points, bot_positions, calculate_dynamic_lot, send_market_order
 from journal import log, record_trade
 import MetaTrader5 as mt5

@@ -100,6 +100,14 @@ def test_history_spread_falls_back_to_current_when_bars_carry_none():
     assert history_spread(pd.DataFrame({"close": [1.0]}), fallback_points=7, point=0.00001) == pytest.approx(0.00007)
 
 
+def test_run_spread_override_wins_over_history():
+    from backtest import run_spread
+    with_data = pd.DataFrame({"spread": [3, 4, 5]})
+    assert run_spread(with_data, fallback_points=7, point=0.00001, override_points=20) == pytest.approx(0.0002)
+    assert run_spread(with_data, fallback_points=7, point=0.00001, override_points=None) == pytest.approx(0.00004)
+    assert run_spread(with_data, fallback_points=7, point=0.00001) == pytest.approx(0.00004)
+
+
 def test_run_backtest_accepts_signal_and_levels_callables(no_filters):
     from strategy import Levels
     df = frame([(100, 101, 99, 100), (100, 101, 99, 100), (100, 101, 99, 100), (100, 107, 99.5, 106)])
@@ -125,6 +133,16 @@ def test_format_report_names_the_engine():
     from backtest import format_report
     assert "<b>BACKTEST london</b>" in format_report(30, {}, engine_name="london")
     assert "<b>BACKTEST scalper</b>" in format_report(30, {})
+
+
+def test_format_report_with_engine_profile_shows_its_own_settings():
+    from backtest import format_report
+    from engines import london_engine
+    text = format_report(30, {}, engine=london_engine())
+    lines = text.splitlines()
+    assert "<b>BACKTEST london</b>" in lines[0]
+    assert "candles=" not in lines[1]
+    assert "trend=True" in lines[1] and "manage=False" in lines[1] and "risk $5/trade" in lines[1]
 
 
 def test_london_engine_replays_one_box_break_per_day(monkeypatch):

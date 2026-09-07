@@ -155,12 +155,18 @@ def summarize(trades: list) -> dict:
     }
 
 
-def format_report(days: int, per_symbol: dict, engine_name: str = "scalper") -> str:
+def format_report(days: int, per_symbol: dict, engine_name: str = "scalper", engine=None) -> str:
     """Telegram (HTML) digest of one or more symbol backtests: {symbol: summarize(...)}."""
-    lines = [f"<b>BACKTEST {engine_name}</b> last {days} days (to {datetime.now():%Y-%m-%d})",
-             f"trend={config.TREND_FILTER_ENABLED} session={config.SESSION_FILTER_ENABLED} "
-             f"candles={config.CANDLE_MODE} manage={config.MANAGE_POSITIONS} "
-             f"risk ${config.RISK_USD_PER_TRADE:g}/trade"]
+    name = engine.name if engine is not None else engine_name
+    if engine is not None:
+        candles = f" candles={config.CANDLE_MODE}" if engine.name == "scalper" else ""
+        settings = (f"trend={engine.trend_filter} manage={engine.manage} "
+                   f"risk ${engine.risk_usd:g}/trade{candles}")
+    else:
+        settings = (f"trend={config.TREND_FILTER_ENABLED} session={config.SESSION_FILTER_ENABLED} "
+                   f"candles={config.CANDLE_MODE} manage={config.MANAGE_POSITIONS} "
+                   f"risk ${config.RISK_USD_PER_TRADE:g}/trade")
+    lines = [f"<b>BACKTEST {name}</b> last {days} days (to {datetime.now():%Y-%m-%d})", settings]
     total = 0.0
     for symbol, s in per_symbol.items():
         if not s.get("trades"):
@@ -181,8 +187,15 @@ def history_spread(df: pd.DataFrame, fallback_points: float, point: float) -> fl
     return (median if median > 0 else float(fallback_points)) * point
 
 
+def run_spread(df: pd.DataFrame, fallback_points: float, point: float, override_points: float = None) -> float:
+    """history_spread, unless override_points is given: then charge exactly that many points."""
+    if override_points is not None:
+        return override_points * point
+    return history_spread(df, fallback_points, point)
+
+
 # -- Data + CLI ------------------------------------------------------------------
-def load_history(symbol: str, days: int, engine=None):
+def load_history(symbol: str, days: int, engine=None, spread_points: float = None):
     import MetaTrader5 as mt5
     from execution import get_rates_range, lot_for_risk
     if engine is None:
@@ -205,7 +218,7 @@ def load_history(symbol: str, days: int, engine=None):
     if engine.trend_filter and (htf is None or len(htf) < config.TREND_EMA_PERIOD):
         raise SystemExit("not enough higher-TF history for the trend EMA")
     df = engine.analyse(df, htf, info)
-    spread_price = history_spread(df, info.spread, info.point)
+    spread_price = run_spread(df, info.spread, info.point, spread_points)
 
     def lot_fn(sl_dist):
         return lot_for_risk(sl_dist, engine.risk_usd, info.trade_tick_size,
@@ -223,6 +236,8 @@ def main():
     ap.add_argument("--csv", help="write trade list to this CSV file")
     ap.add_argument("--no-trend", action="store_true", help="disable the trend filter")
     ap.add_argument("--no-session", action="store_true", help="disable the session filter")
+    ap.add_argument("--spread-points", type=float,
+                    help="charge this spread in points instead of the history/live spread")
     ap.add_argument("--telegram", action="store_true", help="send the summary to the Telegram chat")
     args = ap.parse_args()
     if args.no_trend:
@@ -239,9 +254,10 @@ def main():
 
     all_trades, per_symbol = [], {}
     for symbol in symbols:
-        df, spread, tick_size, tick_value, lot_fn = load_history(symbol, args.days, engine)
+        df, spread, tick_size, tick_value, lot_fn = load_history(symbol, args.days, engine, args.spread_points)
+        source = "override" if args.spread_points is not None else "history"
         print(f"{engine.name} {symbol}: {len(df)} bars {df['time'].iloc[0]} -> {df['time'].iloc[-1]}, "
-              f"median spread {spread:.5g}, trend={engine.trend_filter} session={config.SESSION_FILTER_ENABLED}")
+              f"spread {spread:.5g} ({source}), trend={engine.trend_filter} session={config.SESSION_FILTER_ENABLED}")
         trades = run_backtest(df, symbol, spread, tick_size, tick_value, lot_fn,
                               signal=engine.signal, levels=engine.levels,
                               max_trades_per_day=engine.max_trades_per_day,
@@ -260,7 +276,7 @@ def main():
         print(f"wrote {len(all_trades)} trades to {args.csv}")
     if args.telegram:
         from telegram_notifier import send_telegram
-        send_telegram(format_report(args.days, per_symbol, engine.name))
+        send_telegram(format_report(args.days, per_symbol, engine=engine))
         print("summary sent to Telegram")
 
 
