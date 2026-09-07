@@ -177,7 +177,7 @@ class SymbolTrader:
             log.info("[%s] SKIP %s on %s: no valid stop", self.symbol, signal, last["time"])
             record_trade("SKIP", self.symbol, signal, note="no valid stop")
             return
-        lot = calculate_dynamic_lot(self.symbol, lv.sl_dist, e.risk_usd)
+        lot = calculate_dynamic_lot(self.symbol, lv.sl_dist, e.risk_usd, side=signal, price=lv.entry)
         if lot <= 0:
             log.info("[%s] SKIP %s on %s: no lot fits risk budget", self.symbol, signal, last["time"])
             record_trade("SKIP", self.symbol, signal, note="no lot fits risk budget")

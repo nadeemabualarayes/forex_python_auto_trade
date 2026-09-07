@@ -177,6 +177,11 @@ class FakeMT5:
     def last_error(self): return (0, "ok")
     def symbol_select(self, symbol, enable=True): return symbol == SYMBOL
     def symbol_info(self, symbol): return self.info if symbol == SYMBOL else None
+    def order_calc_profit(self, order_type, symbol, lot, price_open, price_close):
+        if symbol != SYMBOL:
+            return None
+        sign = 1 if order_type == _real_mt5.ORDER_TYPE_BUY else -1
+        return round(sign * (price_close - price_open) / self.info.trade_tick_size * self.info.trade_tick_value * lot, 2)
 
     def symbol_info_tick(self, symbol):
         if symbol != SYMBOL:

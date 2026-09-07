@@ -168,7 +168,7 @@ def wired(monkeypatch):
     monkeypatch.setattr(strategy, "bot_positions", lambda symbol=None, magic=None: calls["positions"].append(magic) or [])
     monkeypatch.setattr(strategy, "spread_points", lambda symbol: 5.0)
     monkeypatch.setattr(strategy, "get_rates", lambda symbol, tf, n=120: _frame(n))
-    monkeypatch.setattr(strategy, "calculate_dynamic_lot", lambda symbol, dist, risk: 0.1 if risk > 0 else 0.0)
+    monkeypatch.setattr(strategy, "calculate_dynamic_lot", lambda symbol, dist, risk, **kw: 0.1 if risk > 0 else 0.0)
     monkeypatch.setattr(strategy, "send_market_order",
                         lambda side, symbol, lot, price, sl, tp, engine=None: calls["orders"].append((side, engine.name, engine.magic)) or True)
     monkeypatch.setattr(strategy, "record_trade", lambda *a, **k: calls["skips"].append(k.get("note", "")))
