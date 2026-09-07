@@ -128,3 +128,71 @@ class TestLevelMultipliers:
         monkeypatch.setattr(config, "TP_ATR_MULTIPLIER", 5.0)
         lv = build_levels("SELL", ask=100.0, bid=99.9, atr=2.0)
         assert lv.sl == pytest.approx(101.9) and lv.tp == pytest.approx(89.9)
+
+
+from types import SimpleNamespace  # noqa: E402
+
+import pandas as pd  # noqa: E402
+
+import strategy  # noqa: E402
+from engines import Engine, scalper_engine, scalper_analyse  # noqa: E402
+
+
+def test_trend_allows_explicit_enabled_flag(monkeypatch):
+    monkeypatch.setattr(config, "TREND_FILTER_ENABLED", False)
+    assert not trend_allows("BUY", 100, 110, enabled=True)
+    assert trend_allows("BUY", 100, 110, enabled=False)
+    assert trend_allows("BUY", 100, 110)                      # config says disabled
+
+
+def _frame(n=60, close=100.0):
+    return pd.DataFrame({"time": pd.date_range("2026-09-07 08:00", periods=n, freq="5min"),
+                         "open": close, "high": close + 1, "low": close - 1, "close": close,
+                         "tick_volume": 1, "spread": 3, "real_volume": 0})
+
+
+def _engine(**over):
+    base = dict(name="test", magic=4242, comment="T", symbols=("XAUUSD",), timeframe=5, lookback=60,
+                trend_filter=False, analyse=scalper_analyse, signal=lambda bar: "BUY",
+                levels=lambda side, ask, bid, bar: strategy.Levels(side, ask, ask - 1.0, ask + 2.0, 1.0),
+                risk_usd=5.0, max_trades_per_day=2, max_consecutive_losses=4,
+                manage=False, breakeven_atr=1.0, trail_atr=1.0)
+    base.update(over)
+    return Engine(**base)
+
+
+@pytest.fixture
+def wired(monkeypatch):
+    """Stub every MT5-facing helper the trader touches; record what it asks for."""
+    calls = {"positions": [], "orders": [], "skips": []}
+    monkeypatch.setattr(strategy, "bot_positions", lambda symbol=None, magic=None: calls["positions"].append(magic) or [])
+    monkeypatch.setattr(strategy, "spread_points", lambda symbol: 5.0)
+    monkeypatch.setattr(strategy, "get_rates", lambda symbol, tf, n=120: _frame(n))
+    monkeypatch.setattr(strategy, "calculate_dynamic_lot", lambda symbol, dist, risk: 0.1 if risk > 0 else 0.0)
+    monkeypatch.setattr(strategy, "send_market_order",
+                        lambda side, symbol, lot, price, sl, tp, engine=None: calls["orders"].append((side, engine.name, engine.magic)) or True)
+    monkeypatch.setattr(strategy, "record_trade", lambda *a, **k: calls["skips"].append(k.get("note", "")))
+    monkeypatch.setattr(strategy.mt5, "symbol_info_tick", lambda s: SimpleNamespace(ask=100.05, bid=100.0))
+    monkeypatch.setattr(strategy.mt5, "symbol_info", lambda s: SimpleNamespace(point=0.01, digits=2))
+    monkeypatch.setattr(config, "SESSION_FILTER_ENABLED", False)
+    return calls
+
+
+def test_trader_defaults_to_the_scalper_profile():
+    t = strategy.SymbolTrader("XAUUSD")
+    assert t.engine.name == "scalper" and t.engine.magic == config.MAGIC_NUMBER
+
+
+def test_trader_uses_engine_magic_cap_and_order_tag(wired):
+    t = strategy.SymbolTrader("XAUUSD", _engine())
+    t.step(datetime(2026, 9, 7, 12, 0), entries_today=0)
+    assert wired["positions"] == [4242]
+    assert wired["orders"] == [("BUY", "test", 4242)]
+    t.step(datetime(2026, 9, 7, 12, 0), entries_today=2)       # engine cap reached
+    assert len(wired["orders"]) == 1 and t.last_skip_reason == "daily trade cap 2 reached"
+
+
+def test_trader_skips_when_levels_are_invalid(wired):
+    t = strategy.SymbolTrader("XAUUSD", _engine(levels=lambda side, ask, bid, bar: None))
+    t.step(datetime(2026, 9, 7, 12, 0), entries_today=0)
+    assert wired["orders"] == [] and wired["skips"] == ["no valid stop"]

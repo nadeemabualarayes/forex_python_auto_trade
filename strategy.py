@@ -55,8 +55,9 @@ def raw_signal(bar) -> str | None:
     return None
 
 
-def trend_allows(signal: str, close: float, trend_ema) -> bool:
-    if not config.TREND_FILTER_ENABLED:
+def trend_allows(signal: str, close: float, trend_ema, enabled: bool | None = None) -> bool:
+    """H1 EMA gate. `enabled` defaults to the scalper's config flag; other engines pass their own."""
+    if not (config.TREND_FILTER_ENABLED if enabled is None else enabled):
         return True
     if trend_ema is None or (isinstance(trend_ema, float) and np.isnan(trend_ema)):
         return False                                    # no trend reading -> stand aside
@@ -92,8 +93,12 @@ def build_levels(side: str, ask: float, bid: float, atr: float,
 
 # -- Per-symbol trader (MT5-facing) ---------------------------------------------
 class SymbolTrader:
-    def __init__(self, symbol: str):
+    def __init__(self, symbol: str, engine=None):
+        if engine is None:
+            from engines import scalper_engine          # lazy: engines imports this module
+            engine = scalper_engine()
         self.symbol = symbol
+        self.engine = engine
         self.last_signal_bar = None
         self.last_skip_reason = None
         self.last_df = None                 # latest indicator frame (for the dashboard candles)
@@ -107,15 +112,16 @@ class SymbolTrader:
 
     def analyse(self):
         """Return (df_with_indicators, last_closed_bar) or (None, None)."""
-        df = get_rates(self.symbol, config.TIMEFRAME, n=config.RATES_LOOKBACK)
+        e = self.engine
+        df = get_rates(self.symbol, e.timeframe, n=e.lookback)
         if df is None or len(df) < max(config.BB_PERIOD, config.ATR_PERIOD, config.RSI_PERIOD) + 5:
             return None, None
-        df = compute_indicators(df)
-        if config.TREND_FILTER_ENABLED:
+        htf = None
+        if e.trend_filter:
             htf = get_rates(self.symbol, config.TREND_TIMEFRAME, n=config.TREND_EMA_PERIOD * 3)
             if htf is None or len(htf) < config.TREND_EMA_PERIOD:
                 return None, None
-            df = attach_trend(df, compute_trend(htf))
+        df = e.analyse(df, htf, mt5.symbol_info(self.symbol))
         self.last_df, self.last_df_mono = df, time.monotonic()
         return df, df.iloc[-2]                          # last *closed* candle
 
@@ -128,8 +134,9 @@ class SymbolTrader:
 
     def step(self, server_dt: datetime, entries_today: int, news_block: str | None = None) -> None:
         """One evaluation pass. Places at most one order, once per closed bar.
-        `news_block` is the calendar blackout reason from news.NewsFilter, or None."""
-        if bot_positions(self.symbol):
+        `entries_today` is this engine's entry count; `news_block` the calendar blackout reason or None."""
+        e = self.engine
+        if bot_positions(self.symbol, magic=e.magic):
             self._skip("position open")
             return
         if not in_session(server_dt):
@@ -138,8 +145,8 @@ class SymbolTrader:
         if news_block:
             self._skip(news_block)
             return
-        if entries_today >= config.MAX_TRADES_PER_DAY:
-            self._skip(f"daily trade cap {config.MAX_TRADES_PER_DAY} reached")
+        if entries_today >= e.max_trades_per_day:
+            self._skip(f"daily trade cap {e.max_trades_per_day} reached")
             return
 
         spread = spread_points(self.symbol)
@@ -158,7 +165,7 @@ class SymbolTrader:
             return                                      # one attempt per candle
         self.last_skip_reason = None
 
-        signal = generate_signal(last)
+        signal = e.signal(last)
         if not signal:
             return
 
@@ -166,13 +173,17 @@ class SymbolTrader:
         tick = mt5.symbol_info_tick(self.symbol)
         if tick is None:
             return
-        lv = build_levels(signal, tick.ask, tick.bid, float(last["atr"]))
-        lot = calculate_dynamic_lot(self.symbol, lv.sl_dist, config.RISK_USD_PER_TRADE)
+        lv = e.levels(signal, tick.ask, tick.bid, last)
+        if lv is None:
+            log.info("[%s] SKIP %s on %s: no valid stop", self.symbol, signal, last["time"])
+            record_trade("SKIP", self.symbol, signal, note="no valid stop")
+            return
+        lot = calculate_dynamic_lot(self.symbol, lv.sl_dist, e.risk_usd)
         if lot <= 0:
             log.info("[%s] SKIP %s on %s: no lot fits risk budget", self.symbol, signal, last["time"])
             record_trade("SKIP", self.symbol, signal, note="no lot fits risk budget")
             return
-        log.info("[%s] SIGNAL %s bar=%s close=%.5g rsi=%.1f atr=%.5g ema=%.5g pattern=%s",
-                 self.symbol, signal, last["time"], last["close"], last["rsi"], last["atr"],
-                 last.get("trend_ema", float("nan")), _pattern(last, signal) or "-")
-        send_market_order(signal, self.symbol, lot, lv.entry, lv.sl, lv.tp)
+        log.info("[%s] %s SIGNAL %s bar=%s close=%.5g rsi=%.1f atr=%.5g ema=%.5g pattern=%s",
+                 self.symbol, e.name, signal, last["time"], last["close"], last.get("rsi", float("nan")),
+                 last["atr"], last.get("trend_ema", float("nan")), _pattern(last, signal) or "-")
+        send_market_order(signal, self.symbol, lot, lv.entry, lv.sl, lv.tp, engine=e)
