@@ -31,6 +31,8 @@ MAX_TRADES_PER_DAY = 6                  # entries per server day across all symb
 MAX_ALLOWED_SPREAD_POINTS = {           # per-symbol spread cap in points
     "XAUUSD": 35,
     "XAGUSD": 40,
+    "EURUSD": 10,
+    "GBPUSD": 15,
     "default": 30,
 }
 
@@ -81,6 +83,30 @@ TRADING_WEEKDAYS = (0, 1, 2, 3, 4)      # Mon..Fri
 MANAGE_POSITIONS = False                # trailing stop cut winners in the 2026-09-06 sweep; keep fixed SL/TP
 BREAKEVEN_ATR = 1.0                     # move SL to entry after this much ATR in profit
 TRAIL_ATR = 1.0                         # then trail SL this far behind price
+
+# ── London breakout engine (london.py, engines.py) ──────────────────────────
+# Second engine: first M5 close beyond the Asian box after the London open, own magic number.
+# Hours are server time; this broker's server clock is UTC+3, so the London open is 10:00.
+LDN_ENABLED = True
+LDN_MAGIC_NUMBER = 998888
+LDN_SYMBOLS = ["EURUSD", "GBPUSD"]      # metals opt-in
+LDN_TIMEFRAME = mt5.TIMEFRAME_M5
+LDN_RATES_LOOKBACK = 300                 # covers box + window from 00:00 to 17:00 server on M5
+LDN_BOX_START_HOUR = 0
+LDN_BOX_END_HOUR = 10                    # London open on this broker (server clock = UTC+3)
+LDN_WINDOW_END_HOUR = 14                 # entries allowed in [BOX_END, WINDOW_END)
+LDN_BUFFER_PIPS = 0.0                    # break = close beyond the edge by this many pips (0 tested best)
+LDN_MAX_BOX_ATR = 0.0                    # 0 = no box-width filter; else skip days with box > N * ATR(14)
+LDN_TREND_FILTER = True                  # H1 EMA200, same helper as the scalper
+LDN_SL_MODE = "atr"                      # "atr" | "box_opposite" | "box_mid"
+LDN_SL_ATR = 1.5                         # stop distance when LDN_SL_MODE == "atr"
+LDN_TP_R = 2.0                           # target = LDN_TP_R x stop distance
+LDN_RISK_USD = 5.0
+LDN_MAX_TRADES_PER_DAY = 2               # one per pair per day by construction
+LDN_MAX_CONSECUTIVE_LOSSES = 4
+LDN_MANAGE_POSITIONS = False
+LDN_BREAKEVEN_ATR = 1.0
+LDN_TRAIL_ATR = 2.0
 
 # ── Reporting ──────────────────────────────────────────────────────────────
 HEARTBEAT_HOURS = 4
