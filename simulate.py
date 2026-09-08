@@ -190,6 +190,12 @@ class FakeMT5:
             return self.h1[-n:]
         return self.m5[max(0, self.i + 1 - n): self.i + 1]
 
+    def order_calc_profit(self, order_type, symbol, lot, price_open, price_close):
+        if symbol != SYMBOL:
+            return None
+        sign = 1 if order_type == _real_mt5.ORDER_TYPE_BUY else -1
+        return round(sign * (price_close - price_open) / self.info.trade_tick_size * self.info.trade_tick_value * lot, 2)
+
     def positions_get(self, symbol=None):
         return tuple(p for p in self.positions if symbol is None or p.symbol == symbol)
 

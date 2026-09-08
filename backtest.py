@@ -217,7 +217,7 @@ def run_spread(df: pd.DataFrame, fallback_points: float, point: float, override_
 # -- Data + CLI ------------------------------------------------------------------
 def load_history(symbol: str, days: int, engine=None, spread_points: float = None):
     import MetaTrader5 as mt5
-    from execution import get_rates_range, lot_for_risk
+    from execution import get_rates_range, lot_for_risk, terminal_loss_per_lot
     if engine is None:
         from engines import scalper_engine
         engine = scalper_engine()
@@ -238,15 +238,22 @@ def load_history(symbol: str, days: int, engine=None, spread_points: float = Non
         raise SystemExit("not enough higher-TF history for the trend EMA")
     tick = mt5.symbol_info_tick(symbol)
     server_offset_s = (tick.time - time.time()) if tick is not None and tick.time else 0.0
+    # Price one tick through the terminal: the SYMBOL_TRADE_TICK_VALUE field is 10x too low for the metals
+    # on this broker, which would make the replay's lots (not its $ P&L per budget) ten times too large.
+    price = tick.ask if tick is not None and tick.ask else (tick.bid if tick is not None else 0)
+    one_tick = terminal_loss_per_lot(symbol, "BUY", price, info.trade_tick_size)
+    tick_value = one_tick if one_tick else info.trade_tick_value
+    if one_tick and abs(one_tick - info.trade_tick_value) > 0.01 * one_tick:
+        print(f"{symbol}: tick value {info.trade_tick_value} reported, {one_tick:g} by the terminal; using the terminal")
     mt5.shutdown()
     df = engine.analyse(df, htf, info)
     spread_price = run_spread(df, info.spread, info.point, spread_points)
 
     def lot_fn(sl_dist):
         return lot_for_risk(sl_dist, engine.risk_usd, info.trade_tick_size,
-                            info.trade_tick_value, info.volume_min, info.volume_max, info.volume_step)
+                            tick_value, info.volume_min, info.volume_max, info.volume_step)
 
-    return df, spread_price, info.trade_tick_size, info.trade_tick_value, lot_fn, server_offset_s
+    return df, spread_price, info.trade_tick_size, tick_value, lot_fn, server_offset_s
 
 
 def cached_calendar() -> list:
