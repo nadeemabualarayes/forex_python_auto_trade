@@ -24,7 +24,7 @@ import MetaTrader5 as mt5                       # noqa: E402
 import config                                   # noqa: E402
 from analytics import pair_trades               # noqa: E402
 from execution import mt5_init_args, lot_for_loss   # noqa: E402
-from history import TradeStore                  # noqa: E402
+from history import Deal                        # noqa: E402
 from technicals import compute_indicators       # noqa: E402
 
 FIX_TIME = datetime(2026, 9, 7, 14, 26, 39)     # server time the terminal-priced sizing went live
@@ -159,13 +159,18 @@ def main():
     mt5.symbol_select(SYMBOL, True)
     info = mt5.symbol_info(SYMBOL)
     df = m1_series(REGIME_DAYS)
+    raw = mt5.history_deals_get(0, 2**31 - 1) or ()
     mt5.shutdown()
     atr_all = df["atr"].dropna().values if df is not None else np.array([])
     cuts = tuple(np.quantile(atr_all, [1 / 3, 2 / 3])) if len(atr_all) else None
 
-    store = TradeStore(os.path.join(config.LOG_DIR, config.HISTORY_DB))
-    deals = [d for d in store.deals(MAGIC) if not d.comment.upper().startswith("TEST")]
-    store.close()
+    # Deals straight from the terminal, not the bot's history.db: the bot syncs only deals carrying its magic,
+    # so a position closed by hand (mobile/desktop, magic 0 on the OUT deal) never reaches the database and
+    # would vanish from the pairing. Keep every deal of a position whose opening deal is the bot's.
+    all_deals = [Deal.from_mt5(d) for d in raw if d.symbol == SYMBOL]
+    bot_positions = {d.position_id for d in all_deals
+                     if d.magic == MAGIC and d.entry == 0 and not d.comment.upper().startswith("TEST")}
+    deals = [d for d in all_deals if d.position_id in bot_positions]
     trades = [t for t in pair_trades(deals) if t.symbol == SYMBOL]
     journal = journal_rows()
     entries = {int(r["ticket"]): r for r in journal if r["event"] == "ENTRY" and r["ticket"] and "[test]" not in r["note"]}
@@ -230,9 +235,13 @@ def main():
         print("  (no strategy-generated closed trades yet)")
     print()
 
-    post = [r for r in rows if not r["prefix"]]
-    pre = [r for r in rows if r["prefix"]]
-    print(f"strategy trades: {len(rows)} total = {len(pre)} pre-fix (oversized, excluded from the forward set) + {len(post)} post-fix")
+    manual = [r for r in rows if r["reason"] == "manual"]
+    post = [r for r in rows if not r["prefix"] and r["reason"] != "manual"]
+    pre = [r for r in rows if r["prefix"] and r["reason"] != "manual"]
+    print(f"strategy trades: {len(rows)} total = {len(pre)} pre-fix (oversized, excluded from the forward set) "
+          f"+ {len(post)} post-fix + {len(manual)} closed by hand (excluded: the exit was not the strategy's)")
+    for r in manual:
+        print(f"    MANUAL CLOSE {r['when']:%Y-%m-%d %H:%M} {r['side']} entry {r['entry']:.2f} net {r['net']:+.2f}")
     print(f"post-fix sizing: {sum(r['sizing_ok'] for r in post)} of {len(post)} lots equal the terminal-priced lot for ${BUDGET:.2f}; "
           f"risk at stop {[r['risk_at_stop'] for r in post]}")
     print(f"since fix: {len(skips_minlot)} min-lot skips, {len(skips_unavail)} 'could not price' skips, "
