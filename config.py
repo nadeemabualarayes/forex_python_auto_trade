@@ -1,4 +1,7 @@
+import calendar
 import os
+from datetime import datetime
+
 import MetaTrader5 as mt5
 
 
@@ -139,6 +142,14 @@ WEB_PORT = 8081                         # the evaluation bot owns 8080
 WEB_RECENT_TRADES = 50                  # journal rows shown on the page
 
 # ── Trade history & analytics ───────────────────────────────────────────────
+# Dashboard statistics ignore trades entered before this server time; "" counts everything.
+# Set to the restart that put terminal-priced sizing live, so the two 0.18-lot trades of
+# 2026-09-07 (broker tick value 10x too small, -$96 on a $5 budget) do not skew the page.
+# The deals themselves are untouched in logs/history.db and in the terminal.
+ANALYTICS_START = "2026-09-07 14:26:39"
+ANALYTICS_START_EPOCH = (calendar.timegm(datetime.strptime(ANALYTICS_START, "%Y-%m-%d %H:%M:%S").timetuple())
+                         if ANALYTICS_START else 0)
+
 HISTORY_ENABLED = True
 HISTORY_DB = "history.db"               # file name inside LOG_DIR
 HISTORY_SYNC_SECONDS = 60               # deal sync + equity snapshot cadence

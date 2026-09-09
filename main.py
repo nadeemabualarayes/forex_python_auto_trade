@@ -8,7 +8,7 @@ from dataclasses import replace
 import MetaTrader5 as mt5
 
 import config
-from analytics import pair_trades, build_analytics, trade_dicts
+from analytics import pair_trades, build_analytics, trade_dicts, since
 from engines import build_engines, engine_names
 from execution import init_mt5, bot_positions, trading_blockers, set_known_magics
 from history import TradeStore, sync_deals, snapshot_equity
@@ -78,7 +78,7 @@ class Bot:
             epoch = calendar.timegm(now.timetuple()) if now else int(time.time())
             open_pnl = sum(p.profit for p in bot_positions())
             self.account = snapshot_equity(self.store, open_pnl=open_pnl, now_epoch=epoch)
-            trades = pair_trades(self.store.deals())
+            trades = since(pair_trades(self.store.deals()), config.ANALYTICS_START_EPOCH)
             start_balance = None
             if self.account:
                 start_balance = round(self.account["balance"] - sum(t.net for t in trades), 2)

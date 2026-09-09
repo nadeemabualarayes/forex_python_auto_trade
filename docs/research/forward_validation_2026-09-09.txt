@@ -1,6 +1,6 @@
-FORWARD VALIDATION  XAUUSD  magic 998811  account 5055596110  balance 2909.84  generated 2026-09-08 20:29 (local = server on this host)
+FORWARD VALIDATION  XAUUSD  magic 998811  account 5055596110  balance 2906.89  generated 2026-09-09 11:24 (local = server on this host)
 sizing fix live since 2026-09-07 14:26:39 server; risk budget $5.00; profile: M1 rsi 35/65 sl/tp 2.0/2.0 ATR trend=False candles=off manage=True
-ATR regime cut-offs (terciles of 30-day M1 ATR): LOW below 1.610, HIGH from 2.309
+ATR regime cut-offs (terciles of 30-day M1 ATR): LOW below 1.602, HIGH from 2.299
 contract 100, tick 0.01, reported tick value 0.1 (terminal-priced: 1)
 
 PER-TRADE (strategy-generated, manual [test] orders excluded)
@@ -22,7 +22,7 @@ server time      side      entry   stop   lot expLot  risk$    net$     Rexit   
 2026-09-08 10:35  LONG    4398.35   4.17  0.01   0.01   4.17   -4.17 -1.00 SL     terminal          2.06 NORMAL    0.67 deep    07-12 ok
 2026-09-08 10:39  LONG    4394.98   4.31  0.01   0.01   4.31   -4.31 -1.00 SL     terminal          2.18 NORMAL    0.53 medium  07-12 ok
 2026-09-08 11:26  SHORT   4396.14   4.22  0.01   0.01   4.22   -0.01 -0.00 manual terminal          2.11 NORMAL    0.23 small   07-12 ok
-2026-09-08 11:49  LONG    4391.63   4.43  0.01   0.01   4.43   +0.76 +0.17 SL     terminal          2.30 NORMAL    0.05 touch   07-12 ok
+2026-09-08 11:49  LONG    4391.63   4.43  0.01   0.01   4.43   +0.76 +0.17 SL     terminal          2.30 HIGH      0.05 touch   07-12 ok
 2026-09-08 12:06  SHORT   4397.40   3.10  0.01   0.01   3.10   +0.67 +0.22 SL     terminal          1.59 LOW       0.21 small   12-17 ok
 2026-09-08 12:27  LONG    4393.76   3.12  0.01   0.01   3.12   +2.88 +0.92 TP     terminal          1.50 LOW       0.08 touch   12-17 ok
 2026-09-08 12:41  SHORT   4399.15   3.79  0.01   0.01   3.79   -3.79 -1.00 SL     terminal          1.89 NORMAL    0.68 deep    12-17 ok
@@ -34,54 +34,69 @@ server time      side      entry   stop   lot expLot  risk$    net$     Rexit   
 2026-09-08 14:13  LONG    4391.63   4.03  0.01   0.01   4.03   +4.03 +1.00 TP     terminal          2.01 NORMAL    0.27 small   12-17 ok
 2026-09-08 14:36  SHORT   4405.16   2.60  0.01   0.01   2.60   -2.60 -1.00 SL     terminal          1.30 LOW       0.09 touch   12-17 ok
 2026-09-08 14:37  SHORT   4407.70   2.79  0.01   0.01   2.79   +1.15 +0.41 SL     terminal          1.39 LOW       0.35 medium  12-17 ok
-2026-09-08 15:13  LONG    4393.98   4.61  0.01   0.01   4.61   -4.61 -1.00 SL     terminal          2.31 NORMAL    1.37 deep    12-17 ok
+2026-09-08 15:13  LONG    4393.98   4.61  0.01   0.01   4.61   -4.61 -1.00 SL     terminal          2.31 HIGH      1.37 deep    12-17 ok
 2026-09-08 15:15  LONG    4389.02   4.61  0.01   0.01   4.61   +4.89 +1.06 TP     terminal          2.37 HIGH      0.62 deep    12-17 ok
 2026-09-08 19:00  LONG    4395.07   3.64  0.01   0.01   3.64   -3.64 -1.00 SL     terminal          1.84 NORMAL    0.37 medium  17-24 ok
 2026-09-08 19:02  LONG    4391.89   3.68  0.01   0.01   3.68   +1.12 +0.30 SL     terminal          1.84 NORMAL    0.54 medium  17-24 ok
 2026-09-08 19:10  LONG    4382.64   5.03  0.01   0.00   5.03   +0.24 +0.05 SL     terminal          2.37 HIGH      2.13 deep    17-24 MISMATCH
-2026-09-08 20:06  SHORT   4401.04   4.57  0.01   0.01   4.57   +4.65 +1.02 TP     terminal          2.31 NORMAL    0.07 touch   17-24 ok
+2026-09-08 20:06  SHORT   4401.04   4.57  0.01   0.01   4.57   +4.65 +1.02 TP     terminal          2.31 HIGH      0.07 touch   17-24 ok
+2026-09-08 20:41  LONG    4387.39   3.30  0.01   0.01   3.30   +0.50 +0.15 SL     terminal          1.66 NORMAL    0.77 deep    17-24 ok
+2026-09-08 21:10  LONG    4384.80   2.88  0.01   0.01   2.88   +0.55 +0.19 SL     terminal          1.45 LOW       0.28 small   17-24 ok
+2026-09-08 21:31  LONG    4383.37   2.81  0.01   0.01   2.81   +0.06 +0.02 SL     terminal          1.40 LOW       0.30 medium  17-24 ok
+2026-09-08 22:34  LONG    4362.04   4.32  0.01   0.01   4.32   +4.28 +0.99 TP     terminal          2.15 NORMAL    1.01 deep    17-24 ok
+2026-09-09 07:00  LONG    4375.39   2.04  0.02   0.02   4.08   -4.08 -1.00 SL     terminal          1.02 LOW       0.56 medium  07-12 ok
+2026-09-09 07:07  LONG    4372.53   2.03  0.02   0.02   4.06   +1.24 +0.31 SL     terminal          1.04 LOW       0.81 deep    07-12 ok
+2026-09-09 07:24  SHORT   4376.24   2.55  0.01   0.01   2.55   -2.55 -1.00 SL     terminal          1.27 LOW       0.46 medium  07-12 ok
+2026-09-09 08:37  SHORT   4389.87   4.17  0.01   0.01   4.17   -4.17 -1.00 SL     terminal          2.09 NORMAL    0.10 touch   07-12 ok
+2026-09-09 09:04  SHORT   4402.45   3.91  0.01   0.01   3.91   +1.42 +0.36 SL     terminal          1.88 NORMAL    0.10 small   07-12 ok
+2026-09-09 09:29  LONG    4395.55   3.70  0.01   0.01   3.70   +3.70 +1.00 TP     terminal          1.85 NORMAL    0.42 medium  07-12 ok
+2026-09-09 09:39  SHORT   4405.44   4.05  0.01   0.01   4.05   +3.87 +0.96 TP     terminal          1.98 NORMAL    0.18 small   07-12 ok
+2026-09-09 10:06  SHORT   4403.39   2.55  0.01   0.01   2.55   -2.55 -1.00 SL     terminal          1.34 LOW       0.61 deep    07-12 ok
+2026-09-09 10:13  SHORT   4405.70   3.09  0.01   0.01   3.09   +0.58 +0.19 SL     terminal          1.49 LOW       0.26 small   07-12 ok
+2026-09-09 10:40  SHORT   4409.93   2.66  0.01   0.01   2.66   -2.66 -1.00 SL     terminal          1.33 LOW       0.27 small   07-12 ok
+2026-09-09 11:11  LONG    4405.41   3.14  0.01   0.01   3.14   -3.14 -1.00 SL     terminal          1.70 NORMAL    0.54 medium  07-12 ok
 
-strategy trades: 35 total = 2 pre-fix (oversized, excluded from the forward set) + 32 post-fix + 1 closed by hand (excluded: the exit was not the strategy's)
+strategy trades: 50 total = 2 pre-fix (oversized, excluded from the forward set) + 47 post-fix + 1 closed by hand (excluded: the exit was not the strategy's)
     MANUAL CLOSE 2026-09-08 11:26 SHORT entry 4396.14 net -0.01
-post-fix sizing: 29 of 32 lots equal the terminal-priced lot for $5.00; risk at stop [4.79, 2.8, 2.88, 3.97, 3.54, 3.46, 5.99, 4.32, 5.02, 4.98, 4.66, 4.27, 4.17, 4.31, 4.43, 3.1, 3.12, 3.79, 4.21, 2.72, 3.83, 4.46, 3.44, 4.03, 2.6, 2.79, 4.61, 4.61, 3.64, 3.68, 5.03, 4.57]
-since fix: 7 min-lot skips, 0 'could not price' skips, 7 journal SKIP rows, 0 field-verified lines, 2 wrong-field warnings, 2 engine starts, 0 errors/tracebacks, 8 warnings, 0 breaker/pause lines
+post-fix sizing: 44 of 47 lots equal the terminal-priced lot for $5.00; risk at stop [4.79, 2.8, 2.88, 3.97, 3.54, 3.46, 5.99, 4.32, 5.02, 4.98, 4.66, 4.27, 4.17, 4.31, 4.43, 3.1, 3.12, 3.79, 4.21, 2.72, 3.83, 4.46, 3.44, 4.03, 2.6, 2.79, 4.61, 4.61, 3.64, 3.68, 5.03, 4.57, 3.3, 2.88, 2.81, 4.32, 4.08, 4.06, 2.55, 4.17, 3.91, 3.7, 4.05, 2.55, 3.09, 2.66, 3.14]
+since fix: 9 min-lot skips, 0 'could not price' skips, 9 journal SKIP rows, 0 field-verified lines, 3 wrong-field warnings, 3 engine starts, 0 errors/tracebacks, 10 warnings, 0 breaker/pause lines
 
 POST-FIX OVERALL
                           trades wins loss   win%      net    PF    exp$   expR   maxDD streak
-all                           32   19   13   59.4   -12.33  0.75   -0.39  -0.12   26.57      3
+all                           47   28   19   59.6   -15.28  0.78   -0.33  -0.12   26.57      3
 
 BY DIRECTION
                           trades wins loss   win%      net    PF    exp$   expR   maxDD streak
-LONG                          20   11    9   55.0   -14.92  0.58   -0.75  -0.19   22.40      2
-SHORT                         12    8    4   66.7    +2.59  1.20   +0.22  +0.01    5.34      1
+LONG                          28   17   11   60.7   -11.81  0.73   -0.42  -0.11   22.40      2
+SHORT                         19   11    8   57.9    -3.47  0.86   -0.18  -0.12    6.72      2
 
 BY SESSION
                           trades wins loss   win%      net    PF    exp$   expR   maxDD streak
 00-07                          0    0    0    0.0    +0.00  0.00   +0.00  +0.00    0.00      0
-07-12                         11    5    6   45.5   -19.89  0.20   -1.81  -0.45   20.65      2
+07-12                         22   10   12   45.5   -28.23  0.36   -1.28  -0.37   29.45      2
 12-17                         17   11    6   64.7    +5.19  1.25   +0.31  +0.05    6.68      1
-17-24                          4    3    1   75.0    +2.37  1.65   +0.59  +0.09    3.64      1
+17-24                          8    7    1   87.5    +7.76  3.13   +0.97  +0.22    3.64      1
 
 BY ATR REGIME
                           trades wins loss   win%      net    PF    exp$   expR   maxDD streak
-LOW                            7    4    3   57.1    -0.54  0.93   -0.08  -0.06    5.32      2
-NORMAL                        19   10    9   52.6   -14.76  0.59   -0.78  -0.21   24.12      3
-HIGH                           6    5    1   83.3    +2.97  1.59   +0.50  +0.12    5.02      1
+LOW                           15    8    7   53.3    -9.95  0.50   -0.66  -0.25   13.58      2
+NORMAL                        23   13   10   56.5    -9.10  0.76   -0.40  -0.12   24.88      3
+HIGH                           9    7    2   77.8    +3.77  1.39   +0.42  +0.10    7.38      1
 
 BY PENETRATION
                           trades wins loss   win%      net    PF    exp$   expR   maxDD streak
-touch                          9    6    3   66.7    +4.06  1.42   +0.45  +0.06    7.00      2
-small                          9    6    3   66.7    +1.74  1.14   +0.19  +0.06    9.34      2
-medium                         5    2    3   40.0    -8.40  0.21   -1.68  -0.46    9.52      2
-deep                           9    5    4   55.6    -9.73  0.41   -1.08  -0.28   14.86      2
+touch                         10    6    4   60.0    -0.11  0.99   -0.01  -0.05    7.00      2
+small                         14   10    4   71.4    +5.50  1.37   +0.39  +0.09    9.34      2
+medium                        10    4    6   40.0   -14.41  0.30   -1.44  -0.43   14.97      2
+deep                          13    8    5   61.5    -6.26  0.67   -0.48  -0.16   14.86      2
 n/a                            0    0    0    0.0    +0.00  0.00   +0.00  +0.00    0.00      0
 
 17-24 LONG vs OTHER LONG vs 17-24 SHORT
                           trades wins loss   win%      net    PF    exp$   expR   maxDD streak
-17-24 LONG                     3    2    1   66.7    -2.28  0.37   -0.76  -0.22    3.64      1
-other LONG                    17    9    8   52.9   -12.64  0.61   -0.74  -0.19   22.40      2
+17-24 LONG                     7    6    1   85.7    +3.11  1.85   +0.44  +0.10    3.64      1
+other LONG                    21   11   10   52.4   -14.92  0.62   -0.71  -0.18   22.40      2
 17-24 SHORT                    1    1    0  100.0    +4.65   inf   +4.65  +1.02    0.00      0
-other SHORT                   11    7    4   63.6    -2.06  0.84   -0.19  -0.08    5.34      1
+other SHORT                   18   10    8   55.6    -8.12  0.68   -0.45  -0.19    8.86      2
 
 PRE-FIX (for the record only)
                           trades wins loss   win%      net    PF    exp$   expR   maxDD streak
@@ -90,6 +105,7 @@ pre-fix                        2    0    2    0.0   -96.12  0.00  -48.06  -1.00 
 sizing / pricing warnings since fix:
     2026-09-07 14:26:39 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
     2026-09-08 17:15:45 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-09 06:58:29 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
 errors since fix:
     none
 breaker / pause lines since fix:

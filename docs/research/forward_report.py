@@ -11,6 +11,7 @@ import csv
 import os
 import re
 import sys
+import time
 from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -159,7 +160,12 @@ def main():
     mt5.symbol_select(SYMBOL, True)
     info = mt5.symbol_info(SYMBOL)
     df = m1_series(REGIME_DAYS)
-    raw = mt5.history_deals_get(0, 2**31 - 1) or ()
+    raw = ()
+    for _ in range(10):                          # right after connecting the history is sometimes still empty
+        raw = mt5.history_deals_get(0, 2**31 - 1) or ()
+        if raw:
+            break
+        time.sleep(1)
     mt5.shutdown()
     atr_all = df["atr"].dropna().values if df is not None else np.array([])
     cuts = tuple(np.quantile(atr_all, [1 / 3, 2 / 3])) if len(atr_all) else None

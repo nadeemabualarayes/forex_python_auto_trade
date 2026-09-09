@@ -87,6 +87,19 @@ def pair_trades(deals, volume_tol: float = 1e-6) -> list[Trade]:
 
 
 # -- metrics ------------------------------------------------------------------------
+def since(trades, start_epoch: int | None):
+    """Trades entered at or after `start_epoch` (0/None = all of them).
+
+    Used to keep a known-bad stretch out of the dashboard statistics without touching the deal
+    history: the two 0.18-lot XAUUSD trades of 2026-09-07 were sized from the broker's wrong
+    SYMBOL_TRADE_TICK_VALUE (10x too small) and lost $96 against a $5 budget, which would skew
+    every average, drawdown and profit factor on the page. The deals stay in history.db and in
+    the terminal; only the counting starts later. See config.ANALYTICS_START."""
+    if not start_epoch:
+        return list(trades)
+    return [t for t in trades if t.entry_time >= start_epoch]
+
+
 def equity_curve(trades) -> list[dict]:
     cum, out = 0.0, []
     for t in trades:

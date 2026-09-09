@@ -113,3 +113,35 @@ def test_trades_carry_magic_and_engine_name(trades):
     rows = trade_dicts(trades, 10, {777: "scalper"})
     assert rows[0]["engine"] == "scalper"
     assert trade_dicts(trades, 10)[0]["engine"] == "other"
+
+
+# -- Analytics cut-off (keep the pre-sizing-fix oversized trades out of the dashboard stats) ----------
+from analytics import since  # noqa: E402
+
+
+def _t(entry_time, net=1.0):
+    return Trade(position_id=entry_time, symbol="XAUUSD", side="BUY", volume=0.01, entry_time=entry_time,
+                 entry_price=1.0, exit_time=entry_time + 60, exit_price=1.0, gross=net, commission=0.0,
+                 swap=0.0, net=net, reason="SL", duration_s=60, hour=0, weekday=0)
+
+
+class TestSince:
+    def test_keeps_only_trades_entered_at_or_after_the_cutoff(self):
+        trades = [_t(100), _t(200), _t(300)]
+        assert [t.entry_time for t in since(trades, 200)] == [200, 300]
+
+    def test_no_cutoff_keeps_everything(self):
+        trades = [_t(100), _t(200)]
+        assert since(trades, 0) == trades
+        assert since(trades, None) == trades
+
+    def test_does_not_mutate_the_input(self):
+        trades = [_t(100), _t(200)]
+        since(trades, 200)
+        assert len(trades) == 2
+
+    def test_summary_ignores_the_excluded_trades(self):
+        # the real case: two -$48 pre-fix trades plus one +$1 post-fix trade
+        trades = [_t(100, -47.34), _t(200, -48.78), _t(300, 1.37)]
+        assert summary(trades)["net"] == pytest.approx(-94.75)
+        assert summary(since(trades, 300))["net"] == pytest.approx(1.37)
