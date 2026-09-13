@@ -17,6 +17,7 @@ from news import NewsFilter
 from position_manager import manage_positions
 from reporting import Reporter
 from risk import ServerClock, daily_stats_by_magic, combine, account_breaker, engine_breaker
+from path_recorder import PathRecorder
 from publisher import PagesPublisher
 from status import build_status, with_trades, chart_block, engine_block
 from strategy import SymbolTrader
@@ -243,11 +244,15 @@ def run() -> int:
         log.warning("pages publishing disabled: no git remote found")
         pages = None
     bot = Bot(symbols, web, pages, engines)
+    paths = PathRecorder(config.LOG_DIR, [e.magic for e in engines])
 
     try:
         while True:
             try:
-                time.sleep(bot.tick())
+                delay = bot.tick()
+                started = time.monotonic()
+                paths.observe()                          # research only: after all trading work; never raises
+                time.sleep(max(0.0, delay - (time.monotonic() - started)))
             except KeyboardInterrupt:
                 raise
             except Exception as e:
@@ -261,6 +266,7 @@ def run() -> int:
         log.info("STOP bot terminated manually")
         send_telegram("\U0001F6D1 <b>Bot stopped</b> manually")
     finally:
+        paths.close()
         if pages:
             pages.join(10)
         if web:

@@ -220,3 +220,76 @@ def test_terminal_gone_reraises_the_original_error_and_sends_no_telegram(monkeyp
         bot.tick()
     assert exc_info.value is boom
     assert sent == []
+
+
+# -- Tick-path recorder hook (observability only) -------------------------------------
+class _TwoTicks:
+    """Stand-in Bot: two normal ticks, then a manual stop."""
+    store = None
+
+    def __init__(self, *a, **k):
+        self.n = 0
+
+    def tick(self):
+        self.n += 1
+        if self.n > 2:
+            raise KeyboardInterrupt
+        return 0.0
+
+
+def _recorder_spy(calls):
+    class _Spy:
+        def __init__(self, log_dir, magics):
+            calls.append(("init", sorted(magics)))
+
+        def observe(self):
+            calls.append("observe")
+
+        def close(self):
+            calls.append("close")
+    return _Spy
+
+
+def _quiet_run(monkeypatch, bot_cls, calls):
+    monkeypatch.setattr(main, "init_mt5", lambda symbols: list(symbols))
+    monkeypatch.setattr(main, "send_telegram", lambda *a, **k: None)
+    monkeypatch.setattr(main, "warn_if_trading_blocked", lambda: [])
+    monkeypatch.setattr(main, "Bot", bot_cls)
+    monkeypatch.setattr(main, "PathRecorder", _recorder_spy(calls))
+    monkeypatch.setattr(main.config, "WEB_ENABLED", False)
+    monkeypatch.setattr(main.config, "PAGES_PUBLISH_ENABLED", False)
+
+
+def test_run_records_paths_after_each_completed_tick_and_closes_on_shutdown(monkeypatch):
+    calls = []
+    _quiet_run(monkeypatch, _TwoTicks, calls)
+    assert main.run() == 0
+    assert calls[0] == ("init", sorted(e.magic for e in main.build_engines()))
+    assert calls[1:] == ["observe", "observe", "close"]
+
+
+def test_run_closes_the_path_recorder_when_the_first_tick_stops_the_loop(monkeypatch):
+    calls = []
+    _quiet_run(monkeypatch, _StopImmediately, calls)
+    assert main.run() == 0
+    assert [c for c in calls if c != calls[0]] == ["close"]
+
+
+def test_recorder_time_is_taken_out_of_the_loop_sleep(monkeypatch):
+    """The loop period stays tick + delay: the sleep is shortened by the time spent recording."""
+    slept = []
+
+    class _OneTick(_TwoTicks):
+        def tick(self):
+            self.n += 1
+            if self.n > 1:
+                raise KeyboardInterrupt
+            return 2.0
+
+    clock = iter([100.0, 100.5])                           # recording took 0.5 s
+    calls = []
+    _quiet_run(monkeypatch, _OneTick, calls)
+    monkeypatch.setattr(main.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(main.time, "sleep", slept.append)
+    assert main.run() == 0
+    assert slept == [1.5]

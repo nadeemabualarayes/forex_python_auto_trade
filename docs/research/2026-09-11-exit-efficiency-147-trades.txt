@@ -1,0 +1,268 @@
+EXIT-EFFICIENCY RESEARCH REPORT - XAUUSD SCALP-TEST - 147 CLOSED STRATEGY TRADES
+Generated: 2026-09-11 22:37 server/local
+Worktree/branch: C:\Develompent\forex_scalp_test / scalp-test
+Profile: XAUUSD M1, magic 998811, RSI 35/65, SL/TP 2.0/2.0 ATR, trend=False, candles=off, manage=True, risk budget $5.00
+Post-sizing-fix window: entries from 2026-09-07 14:26:39 server
+
+METHODOLOGY
+- Source of truth for realized P&L: broker deal history pulled through MetaTrader5, paired by position_id.
+- Strategy set: XAUUSD positions whose opening deal used scalp-test magic 998811, excluding pre-fix entries and manual/test positions.
+- Initial SL/TP: ENTRY rows in logs/trades.csv. Managed/trailing classification: any SL_MOVE row for that ticket.
+- MFE/MAE: M1 OHLC bars covering broker entry-fill minute through broker exit-fill minute. Longs use bid bars as-is; shorts add each bar spread to approximate ask-side marking.
+- R: initial stop distance from entry fill to initial SL. Realized R: broker net P&L divided by initial dollar risk.
+- Exit efficiency: realized R / MFE R where MFE R > 0. This is intentionally harsh for losers with tiny MFE, so medians are more useful than means.
+- Counterfactual sections use MFE/MAE paths as bounds, not as a valid backtest. Intrabar ordering and changed future signal sequence are unknown.
+
+DATA INTEGRITY CHECKS
+- Trades on record: 153 = 2 pre-fix excluded + 147 post-fix strategy trades + 4 manually closed strategy positions excluded.
+- Covering M1 bars missing: 0. Journal initial SL missing: 0.
+- Realized R greater than measured MFE R: 0, so excursion windows are internally consistent.
+- Full-SL exits realized about -1R: mean -1.001R, min -1.031R, max -1.000R.
+- TP exits realized about +1R: mean +0.953R, min +0.155R, max +1.074R. The low TP outlier is a market/fill/management artifact, not a data-pairing break.
+- Dropping partial entry/exit minutes lowers MFE by 0.191R on average across 123 trades with interior bars, so headline MFE is an upper bound.
+
+OVERALL RESULTS
+- Closed post-fix trades: 147. Wins: 89. Losses: 58. Win rate: 60.5%.
+- Gross profit: $171.14. Gross loss: $219.75. Net: $-48.61. Profit factor: 0.78.
+- Avg win: $1.92. Avg loss: $-3.79. Max loss: $-5.02.
+- Average realized R: -0.09R. Median MFE: 0.69R. Median MAE: 0.70R.
+- MFE thresholds reached by all trades: +0.25R 117 trades, +0.5R 100, +0.75R 65, +1.0R 35.
+
+SMALL-PROFIT GIVEBACK ANALYSIS
+Definition: realized profit > 0 and realized <= +0.25R, grouped by minimum MFE. Potential not captured = MFE dollar value minus realized net.
+bucket                  trades  realized$  MFE available$  avg MFE R  median MFE R  not captured$  not captured R
+realized<=0.25R, MFE>=0.50     39     +17.91          101.32       0.69          0.69          83.41           22.27
+realized<=0.25R, MFE>=0.75     11      +6.88           35.35       0.82          0.85          28.47            7.32
+realized<=0.25R, MFE>=1.00      0      +0.00            0.00       0.00          0.00           0.00            0.00
+- Interpretation: many small winners did have +0.5R available, but almost none had true +1R giveback. The visible issue is mostly trailing converting sub-1R moves into small wins.
+
+PROFITABLE LOSERS
+Losers that were temporarily favorable before closing red:
+- Reached +0.25R: 28 of 58 losers (48.3%), net $-105.08, avg MFE 0.50R.
+- Reached +0.50R: 12 of 58 losers (20.7%), net $-45.47, avg MFE 0.67R.
+- Reached +0.75R: 5 of 58 losers (8.6%), net $-18.51, avg MFE 0.84R.
+- Common enough to justify research? Yes for a protective rule after +0.5R, but not enough to justify changing live behavior. Only 12 losers reached +0.5R and only 5 reached +0.75R.
+
+TIGHTER-STOP IMPACT ON WINNERS
+Winning trades whose MAE would have breached hypothetical protective stops:
+- Stop/protection at 0.25R adverse: 54 of 89 winners (60.7%) at risk; those winners contributed $+90.17.
+- Stop/protection at 0.50R adverse: 28 of 89 winners (31.5%) at risk; those winners contributed $+53.24.
+- Stop/protection at 0.75R adverse: 12 of 89 winners (13.5%) at risk; those winners contributed $+25.77.
+- This is the main caution: a 0.5R protective concept could rescue up to 12 losers, but 28 existing winners had at least 0.5R MAE.
+
+EXIT-TYPE COMPARISON
+exit type  count  win%    net$    avg R  avg MFE R  avg MAE R  median efficiency
+SL          58    0.0  -219.75   -1.001      0.276      1.376             -2.935
+TRAIL       53  100.0   +37.74   +0.184      0.742      0.402              0.232
+TP          36  100.0  +133.40   +0.953      1.247      0.383              0.855
+- SL exits are the damage: 58 trades, -$219.75. TRAIL exits are all winners but low capture: 53 trades, +$37.74, median efficiency 0.232. TP exits are the profit engine: 36 trades, +$133.40, median efficiency 0.855.
+
+SESSION / DIRECTION / ATR / PENETRATION ANALYSIS
+By session:
+group       n   win%     net$   avg R  med MFE R  med MAE R
+00-07     23   73.9     +8.05   +0.08       0.70       0.47
+07-12     51   41.2    -73.54   -0.37       0.53       1.04
+12-17     40   67.5    +10.69   +0.07       0.77       0.78
+17-24     33   72.7     +6.19   +0.01       0.72       0.46
+By direction:
+group       n   win%     net$   avg R  med MFE R  med MAE R
+LONG      86   60.5    -39.33   -0.12       0.63       0.73
+SHORT     61   60.7     -9.28   -0.06       0.77       0.61
+By ATR regime:
+group       n   win%     net$   avg R  med MFE R  med MAE R
+LOW       45   60.0    -25.55   -0.14       0.66       0.76
+NORMAL    83   59.0    -27.87   -0.10       0.72       0.68
+HIGH      19   68.4     +4.81   +0.05       0.79       0.37
+By Bollinger penetration:
+group       n   win%     net$   avg R  med MFE R  med MAE R
+touch     23   56.5     -7.79   -0.12       0.73       0.61
+small     41   80.5    +35.39   +0.20       0.82       0.44
+medium    31   48.4    -35.55   -0.28       0.54       0.96
+deep      52   53.8    -40.66   -0.21       0.63       0.87
+- Primary pattern: 07-12 is the only strongly negative session: 51 trades, 41.2% win, -$73.54, PF 0.37, median MAE 1.04R.
+- Other sessions together: 96 trades, 70.8% win, +$24.93. That points more to session-specific entry quality than a universal exit leak.
+- Direction asymmetry is mild: LONG -$39.33 vs SHORT -$9.28 with almost identical win rates. Longs are worse, but not enough to explain the whole loss.
+- ATR: LOW and NORMAL lose; HIGH is slightly positive. This does not support a simple high-volatility avoidance rule.
+- Penetration: small penetration is strongly positive (+$35.39, 80.5% win); medium/deep are materially negative. The rule struggles when the band break is already extended.
+
+COST ANALYSIS
+- Broker deal gross result: $-48.48. Explicit commission+fee: $0.00. Swap: $-0.13. Net result: $-48.61.
+- Explicit broker charges: $-0.13 total, $-0.0009 per trade. The broker is not charging meaningful separate commission in these records.
+- Spread is not a separate deal-history cost field; it is embedded in entry/exit fills and in whether TP/SL prices are reachable. Using entry-minute M1 spread as an approximation, estimated entry-spread friction is about $20.57 total, $0.14 per trade, median $0.11.
+- Net expectancy is $-0.33/trade. The estimated entry-spread friction alone is larger than the absolute expectancy, so costs/friction consume the edge even though explicit commission is near zero.
+- Do not treat the dashboard cost field as the whole story: the decisive scalping cost is bid/ask friction embedded in fills and bar-side marking, not only commission/swap/fee columns.
+
+COUNTERFACTUAL EXIT ANALYSIS - RESEARCH ONLY
+These are bounds from MFE/MAE, not deployable backtests. M1 bars cannot tell whether high or low happened first inside the minute, and changed exits would change later entries because the bot allows one position at a time.
+1. Current 2R TP / initial SL: actual result is 147 trades, net -$48.61, PF 0.78. Only 35 trades reached +1.0R MFE; 36 TP exits generated +$133.40, while 58 SL exits lost -$219.75.
+2. Partial-profit around +0.5R: 100 trades reached +0.5R. This is common enough to test, especially because 12 eventual losers reached it, but partials would also dilute the 36 TP winners that currently carry most gross profit.
+3. Breakeven after +0.5R: could have affected up to 12 losing trades, but 28 winners had MAE >=0.5R and could have been cut before later profits depending on ordering. Needs tick or at least reliable ordered M1 replay.
+4. Trailing after +0.5R: conceptually aligned with the data because many trades peak below +1R; however the current trailing already produces 53 small winning exits with median efficiency only 0.232. Testing should focus on whether trail distance is too tight or too early, not on adding trailing from scratch.
+5. Trailing after +0.75R: only 65 trades reached +0.75R, and only 5 losers did. It would be less defensive but may preserve more TP upside. M1 data can provide rough bounds; tick data is required to model real trigger order and stop placement.
+- Available M1 data is sufficient for screening hypotheses and ruling out obvious bugs. It is not sufficient for a valid exit-rule backtest where intra-minute order matters.
+
+FINAL DIAGNOSIS
+Diagnosis: BOTH.
+- Entry problem: the 07-12 session is strongly negative and adverse excursion is high; medium/deep Bollinger penetration is also negative. These are entry-quality signatures.
+- Exit problem: not a bug, but an efficiency problem. There are 39 small winners <=0.25R that reached at least +0.5R, and trailing exits capture little of available favorable movement. The exit issue is secondary to the morning/session entry problem, but it is real enough to test.
+
+WHAT WE SHOULD NOT CHANGE
+- Do not change live scalp-test parameters from this 147-trade sample.
+- Do not disable 07-12, filter medium/deep penetration, or alter long/short exposure yet; those would be sample-fit decisions.
+- Do not remove the 2R TP solely because many trades fail to reach it; TP exits produce most gross profit.
+- Do not add breakeven/tighter stops live without ordered tick-level or forward evidence; many winners had meaningful MAE first.
+
+RECOMMENDATION
+- Next research hypothesis: evaluate a pre-registered exit-management variant that protects part of the position around +0.5R while leaving enough runner exposure for TP winners. Compare it against a delayed trailing variant after +0.75R. Do not choose exact parameters by maximizing this sample.
+- Additional forward data required: at least two more full trading weeks, ideally 300+ post-fix strategy trades, no manual closes on this account, and tick-level quote capture or explicit per-position path logging so intrabar ordering is known.
+- Minimum evidence before live strategy change: the proposed rule must improve net expectancy and PF after costs on out-of-sample forward data, not reduce TP contribution materially, not increase max drawdown or loss streak, and remain positive outside a single session/bucket.
+
+APPENDIX: EVERY POST-FIX STRATEGY TRADE
+entry              side    entry    exit     SL       TP       net$     R     MFE   MFE_R   MAE   MAE_R  eff    reason  min  session ATR     penetration
+2026-09-07 14:33  LONG  4385.11 4386.48 4380.32 4389.98    +1.37 +0.29   3.95  +0.82  4.08  +0.85  +0.35 TRAIL     8  12-17  HIGH   small
+2026-09-07 15:26  SHORT 4394.40 4397.20 4397.20 4391.60    -2.80 -1.00   1.19  +0.42  2.72  +0.97  -2.35 SL        5  12-17  LOW    small
+2026-09-07 15:32  SHORT 4396.41 4393.53 4399.29 4393.53    +2.88 +1.00   3.19  +1.11  0.48  +0.17  +0.90 TP        3  12-17  LOW    small
+2026-09-07 16:06  SHORT 4401.69 4405.66 4405.66 4397.72    -3.97 -1.00   2.18  +0.55  5.46  +1.38  -1.82 SL       25  12-17  NORMAL deep
+2026-09-08 08:25  LONG  4425.03 4421.49 4421.49 4428.61    -3.54 -1.00   0.27  +0.08  3.82  +1.08 -13.11 SL        3  07-12  NORMAL touch
+2026-09-08 08:28  LONG  4422.31 4418.85 4418.85 4425.77    -3.46 -1.00   3.43  +0.99  4.33  +1.25  -1.01 SL        1  07-12  NORMAL touch
+2026-09-08 08:30  LONG  4420.64 4421.57 4414.65 4421.57    +0.93 +0.16   5.10  +0.85  2.66  +0.44  +0.18 TP        0  07-12  NORMAL small
+2026-09-08 08:55  LONG  4420.04 4415.72 4415.72 4424.36    -4.32 -1.00   0.96  +0.22  5.47  +1.27  -4.50 SL        6  07-12  NORMAL small
+2026-09-08 09:02  LONG  4415.80 4410.78 4410.78 4420.52    -5.02 -1.00   0.00  +0.00  5.09  +1.01    n/a SL        9  07-12  HIGH   small
+2026-09-08 09:13  LONG  4409.27 4409.73 4404.29 4414.23    +0.46 +0.09   3.14  +0.63  0.96  +0.19  +0.15 TRAIL     2  07-12  HIGH   touch
+2026-09-08 09:20  LONG  4402.30 4403.33 4397.64 4407.00    +1.03 +0.22   3.70  +0.79  1.20  +0.26  +0.28 TRAIL     3  07-12  HIGH   deep
+2026-09-08 09:44  SHORT 4407.63 4405.88 4411.90 4403.20    +1.75 +0.41   3.67  +0.86  1.79  +0.42  +0.48 TRAIL    10  07-12  NORMAL touch
+2026-09-08 10:35  LONG  4398.35 4394.18 4394.18 4402.42    -4.17 -1.00   0.65  +0.16  6.61  +1.59  -6.42 SL        4  07-12  NORMAL deep
+2026-09-08 10:39  LONG  4394.98 4390.67 4390.67 4399.39    -4.31 -1.00   2.30  +0.53  4.79  +1.11  -1.87 SL       15  07-12  NORMAL medium
+2026-09-08 11:49  LONG  4391.63 4392.39 4387.20 4396.40    +0.76 +0.17   3.27  +0.74  0.58  +0.13  +0.23 TRAIL     1  07-12  NORMAL touch
+2026-09-08 12:06  SHORT 4397.40 4396.73 4400.50 4394.16    +0.67 +0.22   2.65  +0.85  0.67  +0.22  +0.25 TRAIL     5  12-17  LOW    small
+2026-09-08 12:27  LONG  4393.76 4396.64 4390.64 4396.64    +2.88 +0.92   3.76  +1.21  2.91  +0.93  +0.77 TP        5  12-17  LOW    touch
+2026-09-08 12:41  SHORT 4399.15 4402.94 4402.94 4395.36    -3.79 -1.00   0.16  +0.04  4.48  +1.18 -23.69 SL        0  12-17  NORMAL deep
+2026-09-08 12:42  SHORT 4402.12 4401.87 4406.33 4397.91    +0.25 +0.06   2.51  +0.60  1.64  +0.39  +0.10 TRAIL     2  12-17  NORMAL deep
+2026-09-08 13:05  LONG  4398.79 4396.07 4396.07 4401.49    -2.72 -1.00   0.00  +0.00  4.04  +1.49    n/a SL        5  12-17  LOW    medium
+2026-09-08 13:21  SHORT 4405.22 4404.82 4409.05 4401.15    +0.40 +0.10   2.94  +0.77  0.58  +0.15  +0.14 TRAIL     0  12-17  NORMAL deep
+2026-09-08 13:22  SHORT 4403.54 4399.54 4408.00 4399.54    +4.00 +0.90   4.88  +1.09  0.41  +0.09  +0.82 TP        7  12-17  NORMAL small
+2026-09-08 14:09  LONG  4394.14 4397.30 4390.70 4397.30    +3.16 +0.92   5.25  +1.53  0.46  +0.13  +0.60 TP        0  12-17  NORMAL touch
+2026-09-08 14:13  LONG  4391.63 4395.66 4387.60 4395.66    +4.03 +1.00   5.02  +1.25  0.56  +0.14  +0.80 TP        2  12-17  NORMAL small
+2026-09-08 14:36  SHORT 4405.16 4407.76 4407.76 4402.56    -2.60 -1.00   0.92  +0.35  2.83  +1.09  -2.83 SL        1  12-17  LOW    touch
+2026-09-08 14:37  SHORT 4407.70 4406.55 4410.49 4404.91    +1.15 +0.41   2.83  +1.01  0.36  +0.13  +0.41 TRAIL     3  12-17  LOW    medium
+2026-09-08 15:13  LONG  4393.98 4389.37 4389.37 4398.59    -4.61 -1.00   1.30  +0.28  8.68  +1.88  -3.55 SL        2  12-17  NORMAL deep
+2026-09-08 15:15  LONG  4389.02 4393.91 4384.41 4393.91    +4.89 +1.06   5.66  +1.23  3.72  +0.81  +0.86 TP        5  12-17  HIGH   deep
+2026-09-08 19:00  LONG  4395.07 4391.43 4391.43 4398.79    -3.64 -1.00   0.02  +0.01  3.92  +1.08 -182.00 SL        2  17-24  NORMAL medium
+2026-09-08 19:02  LONG  4391.89 4393.01 4388.21 4395.57    +1.12 +0.30   3.05  +0.83  0.74  +0.20  +0.37 TRAIL     4  17-24  NORMAL medium
+2026-09-08 19:10  LONG  4382.64 4382.88 4377.61 4387.11    +0.24 +0.05   2.91  +0.58  1.76  +0.35  +0.08 TRAIL     0  17-24  HIGH   deep
+2026-09-08 20:06  SHORT 4401.04 4396.39 4405.61 4396.39    +4.65 +1.02   5.65  +1.24  0.32  +0.07  +0.82 TP        6  17-24  NORMAL touch
+2026-09-08 20:41  LONG  4387.39 4387.89 4384.09 4390.71    +0.50 +0.15   2.06  +0.62  2.26  +0.68  +0.24 TRAIL    14  17-24  NORMAL deep
+2026-09-08 21:10  LONG  4384.80 4385.35 4381.92 4387.72    +0.55 +0.19   2.08  +0.72  0.84  +0.29  +0.26 TRAIL     3  17-24  LOW    small
+2026-09-08 21:31  LONG  4383.37 4383.43 4380.56 4386.14    +0.06 +0.02   2.29  +0.81  1.97  +0.70  +0.03 TRAIL    13  17-24  LOW    medium
+2026-09-08 22:34  LONG  4362.04 4366.32 4357.72 4366.32    +4.28 +0.99   4.66  +1.08  0.62  +0.14  +0.92 TP        1  17-24  NORMAL deep
+2026-09-09 07:00  LONG  4375.39 4373.35 4373.35 4377.43    -4.08 -1.00   0.67  +0.33  3.41  +1.67  -3.04 SL        6  07-12  LOW    medium
+2026-09-09 07:07  LONG  4372.53 4373.15 4370.50 4374.64    +1.24 +0.31   1.82  +0.90  2.01  +0.99  +0.34 TRAIL     9  07-12  LOW    deep
+2026-09-09 07:24  SHORT 4376.24 4378.79 4378.79 4373.69    -2.55 -1.00   0.16  +0.06  3.37  +1.32 -15.94 SL        3  07-12  LOW    medium
+2026-09-09 08:37  SHORT 4389.87 4394.04 4394.04 4385.70    -4.17 -1.00   0.00  +0.00  4.89  +1.17    n/a SL        6  07-12  NORMAL touch
+2026-09-09 09:04  SHORT 4402.45 4401.03 4406.36 4398.84    +1.42 +0.36   3.61  +0.92  2.88  +0.74  +0.39 TRAIL     9  07-12  NORMAL small
+2026-09-09 09:29  LONG  4395.55 4399.25 4391.85 4399.25    +3.70 +1.00   3.97  +1.07  0.42  +0.11  +0.93 TP        1  07-12  NORMAL medium
+2026-09-09 09:39  SHORT 4405.44 4401.57 4409.49 4401.57    +3.87 +0.96   4.92  +1.21  0.54  +0.13  +0.79 TP        3  07-12  NORMAL small
+2026-09-09 10:06  SHORT 4403.39 4405.94 4405.94 4400.60    -2.55 -1.00   0.91  +0.36  2.75  +1.08  -2.80 SL        6  07-12  LOW    deep
+2026-09-09 10:13  SHORT 4405.70 4405.12 4408.79 4402.85    +0.58 +0.19   2.69  +0.87  2.22  +0.72  +0.22 TRAIL     7  07-12  LOW    small
+2026-09-09 10:40  SHORT 4409.93 4412.59 4412.59 4407.27    -2.66 -1.00   1.45  +0.55  2.90  +1.09  -1.83 SL        6  07-12  LOW    small
+2026-09-09 11:11  LONG  4405.41 4402.27 4402.27 4409.07    -3.14 -1.00   1.13  +0.36  3.42  +1.09  -2.78 SL        7  07-12  NORMAL medium
+2026-09-09 12:47  LONG  4394.72 4392.27 4392.27 4397.11    -4.90 -1.00   1.27  +0.52  2.54  +1.04  -1.93 SL        4  12-17  LOW    medium
+2026-09-09 12:51  LONG  4392.59 4392.61 4389.86 4395.32    +0.02 +0.01   1.50  +0.55  0.46  +0.17  +0.01 TRAIL     2  12-17  LOW    small
+2026-09-09 12:55  LONG  4391.24 4388.37 4388.37 4394.19    -2.87 -1.00   0.27  +0.09  4.93  +1.72 -10.63 SL        6  12-17  LOW    small
+2026-09-09 13:02  LONG  4386.85 4390.31 4383.47 4390.31    +3.46 +1.02   3.98  +1.18  0.75  +0.22  +0.87 TP        1  12-17  NORMAL small
+2026-09-09 13:21  SHORT 4395.34 4394.67 4398.41 4392.27    +0.67 +0.22   2.23  +0.73  0.36  +0.12  +0.30 TRAIL     7  12-17  LOW    touch
+2026-09-09 13:56  SHORT 4402.84 4399.89 4405.97 4399.89    +2.95 +0.94   3.30  +1.05  0.23  +0.07  +0.89 TP        3  12-17  LOW    touch
+2026-09-09 14:27  SHORT 4407.66 4407.36 4410.36 4404.96    +0.30 +0.11   1.97  +0.73  1.47  +0.54  +0.15 TRAIL     5  12-17  LOW    deep
+2026-09-09 14:50  SHORT 4413.22 4409.80 4417.50 4409.80    +3.42 +0.80   4.04  +0.94  2.11  +0.49  +0.85 TP        1  12-17  NORMAL deep
+2026-09-09 14:51  SHORT 4409.33 4408.67 4413.26 4405.26    +0.66 +0.17   3.40  +0.87  3.99  +1.02  +0.19 TRAIL     6  12-17  NORMAL deep
+2026-09-09 17:56  LONG  4417.77 4421.92 4412.12 4421.92    +4.15 +0.73  14.23  +2.52  2.92  +0.52  +0.29 TP        4  17-24  HIGH   small
+2026-09-09 19:19  LONG  4392.26 4397.15 4387.29 4397.15    +4.89 +0.98   6.34  +1.28  0.84  +0.17  +0.77 TP        5  17-24  HIGH   touch
+2026-09-09 19:45  SHORT 4407.61 4407.58 4411.69 4403.53    +0.03 +0.01   1.94  +0.48  1.72  +0.42  +0.02 TRAIL     9  17-24  NORMAL small
+2026-09-09 20:01  SHORT 4410.44 4413.82 4413.82 4407.08    -3.38 -1.00   1.38  +0.41  3.61  +1.07  -2.45 SL        1  17-24  NORMAL touch
+2026-09-09 20:07  SHORT 4417.77 4420.84 4420.84 4413.56    -3.07 -1.00   2.60  +0.85  2.84  +0.93  -1.18 SL       19  17-24  NORMAL deep
+2026-09-09 20:32  LONG  4413.67 4415.49 4409.93 4417.41    +1.82 +0.49   3.47  +0.93  1.96  +0.52  +0.52 TRAIL    11  17-24  NORMAL small
+2026-09-09 21:14  SHORT 4420.79 4419.94 4424.33 4417.33    +0.85 +0.24   2.56  +0.72  0.29  +0.08  +0.33 TRAIL     2  17-24  NORMAL small
+2026-09-09 21:32  LONG  4415.15 4415.46 4412.70 4417.60    +0.62 +0.13   1.70  +0.69  1.54  +0.63  +0.18 TRAIL     2  17-24  LOW    medium
+2026-09-09 21:42  LONG  4412.40 4409.03 4409.03 4415.77    -3.37 -1.00   0.00  +0.00  4.11  +1.22    n/a SL        4  17-24  NORMAL small
+2026-09-10 01:02  SHORT 4404.81 4404.33 4408.48 4401.02    +0.48 +0.13   2.34  +0.64  1.94  +0.53  +0.21 TRAIL     9  00-07  NORMAL deep
+2026-09-10 01:49  LONG  4399.49 4399.66 4396.92 4401.94    +0.17 +0.07   1.56  +0.61  1.96  +0.76  +0.11 TRAIL    10  00-07  LOW    medium
+2026-09-10 02:33  LONG  4395.10 4391.56 4391.56 4398.64    -3.54 -1.00   0.00  +0.00  4.24  +1.20    n/a SL       28  00-07  NORMAL small
+2026-09-10 03:01  LONG  4392.03 4389.96 4389.96 4394.10    -4.14 -1.00   0.41  +0.20  2.31  +1.12  -5.05 SL        0  00-07  LOW    deep
+2026-09-10 03:02  LONG  4390.18 4390.76 4388.03 4392.33    +1.16 +0.27   1.89  +0.88  0.57  +0.27  +0.31 TRAIL     3  00-07  LOW    deep
+2026-09-10 03:30  LONG  4393.07 4393.12 4389.79 4396.35    +0.05 +0.02   1.91  +0.58  0.63  +0.19  +0.03 TRAIL     1  00-07  NORMAL medium
+2026-09-10 03:41  SHORT 4399.30 4398.58 4403.08 4395.52    +0.72 +0.19   2.83  +0.75  0.90  +0.24  +0.25 TRAIL     2  00-07  NORMAL small
+2026-09-10 03:54  SHORT 4404.31 4402.89 4407.97 4400.53    +1.42 +0.39   3.48  +0.95  0.63  +0.17  +0.41 TRAIL     5  00-07  NORMAL medium
+2026-09-10 04:01  SHORT 4407.82 4412.26 4412.26 4403.32    -4.44 -1.00   2.20  +0.50  5.33  +1.20  -2.02 SL        2  00-07  NORMAL deep
+2026-09-10 04:47  SHORT 4412.89 4408.73 4417.05 4408.73    +4.16 +1.00   4.56  +1.10  1.75  +0.42  +0.91 TP        7  00-07  NORMAL small
+2026-09-10 05:06  SHORT 4418.17 4413.26 4423.22 4413.26    +4.91 +0.97   6.14  +1.22  0.70  +0.14  +0.80 TP        6  00-07  HIGH   small
+2026-09-10 06:06  LONG  4416.26 4412.87 4412.87 4419.65    -3.39 -1.00   0.00  +0.00  4.79  +1.41    n/a SL        2  00-07  NORMAL touch
+2026-09-10 06:08  LONG  4413.19 4416.61 4409.77 4416.61    +3.42 +1.00   3.50  +1.02  1.72  +0.50  +0.98 TP        2  00-07  NORMAL small
+2026-09-10 06:27  LONG  4410.50 4411.01 4407.65 4413.35    +0.51 +0.18   1.97  +0.69  1.34  +0.47  +0.26 TRAIL     6  00-07  LOW    small
+2026-09-10 06:42  LONG  4407.77 4408.30 4405.24 4410.30    +0.53 +0.21   2.19  +0.87  0.74  +0.29  +0.24 TRAIL     7  00-07  LOW    small
+2026-09-10 07:05  SHORT 4412.63 4414.83 4414.83 4410.43    -4.40 -1.00   0.20  +0.09  2.95  +1.34 -11.00 SL        6  07-12  LOW    deep
+2026-09-10 07:30  LONG  4412.43 4410.17 4410.17 4414.69    -4.52 -1.00   1.25  +0.55  2.58  +1.14  -1.81 SL        6  07-12  LOW    deep
+2026-09-10 07:39  LONG  4408.57 4406.07 4406.07 4411.07    -5.00 -1.00   0.06  +0.02  2.69  +1.08 -41.67 SL        2  07-12  LOW    medium
+2026-09-10 07:41  LONG  4406.35 4408.99 4403.71 4408.99    +2.64 +1.00   3.00  +1.14  0.88  +0.33  +0.88 TP        6  07-12  LOW    medium
+2026-09-10 08:08  SHORT 4412.64 4415.55 4415.55 4409.73    -2.91 -1.00   0.00  +0.00  4.10  +1.41    n/a SL        1  07-12  LOW    deep
+2026-09-10 08:10  SHORT 4414.54 4417.50 4417.50 4411.40    -2.96 -1.00   0.00  +0.00  4.33  +1.46    n/a SL        3  07-12  LOW    medium
+2026-09-10 08:14  SHORT 4418.08 4421.72 4421.72 4414.46    -3.64 -1.00   1.02  +0.28  4.86  +1.34  -3.57 SL       16  07-12  NORMAL touch
+2026-09-10 08:33  SHORT 4426.46 4422.40 4430.52 4422.40    +4.06 +1.00   4.59  +1.13  1.39  +0.34  +0.88 TP        6  07-12  NORMAL deep
+2026-09-10 09:13  LONG  4419.09 4414.23 4414.23 4423.95    -4.86 -1.00   0.65  +0.13  5.05  +1.04  -7.48 SL        2  07-12  HIGH   medium
+2026-09-10 09:15  LONG  4414.39 4418.60 4410.18 4418.60    +4.21 +1.00   4.62  +1.10  3.54  +0.84  +0.91 TP       14  07-12  NORMAL small
+2026-09-10 09:41  SHORT 4420.99 4424.88 4424.88 4417.10    -3.89 -1.00   0.48  +0.12  3.86  +0.99  -8.10 SL        1  07-12  NORMAL medium
+2026-09-10 09:42  SHORT 4424.60 4428.43 4428.43 4420.77    -3.83 -1.00   3.00  +0.78  4.37  +1.14  -1.28 SL        3  07-12  NORMAL medium
+2026-09-10 09:46  SHORT 4428.38 4424.49 4432.27 4424.49    +3.89 +1.00   4.04  +1.04  0.59  +0.15  +0.96 TP        1  07-12  NORMAL small
+2026-09-10 10:02  LONG  4419.57 4415.88 4415.88 4423.26    -3.69 -1.00   0.00  +0.00  4.04  +1.09    n/a SL        1  07-12  NORMAL deep
+2026-09-10 10:03  LONG  4416.42 4412.36 4412.36 4420.50    -4.06 -1.00   0.91  +0.22  4.87  +1.20  -4.46 SL       11  07-12  NORMAL deep
+2026-09-10 10:26  LONG  4410.29 4406.69 4406.69 4413.89    -3.60 -1.00   0.48  +0.13  3.69  +1.02  -7.50 SL        4  07-12  NORMAL touch
+2026-09-10 10:35  LONG  4405.09 4405.46 4401.25 4409.43    +0.37 +0.10   2.51  +0.65  1.08  +0.28  +0.15 TRAIL     4  07-12  NORMAL medium
+2026-09-10 10:48  SHORT 4412.16 4408.28 4416.04 4408.28    +3.88 +1.00   4.10  +1.06  3.31  +0.85  +0.95 TP       15  07-12  NORMAL small
+2026-09-10 11:05  LONG  4408.02 4408.16 4404.64 4411.40    +0.14 +0.04   1.73  +0.51  1.42  +0.42  +0.08 TRAIL     6  07-12  NORMAL small
+2026-09-10 11:32  LONG  4403.18 4400.06 4400.06 4406.30    -3.12 -1.00   0.00  +0.00  3.35  +1.07    n/a SL        2  07-12  LOW    deep
+2026-09-10 11:34  LONG  4400.45 4397.17 4397.17 4403.63    -3.28 -1.00   1.43  +0.44  5.05  +1.54  -2.29 SL        7  07-12  LOW    deep
+2026-09-10 12:32  LONG  4391.21 4394.09 4387.97 4394.09    +2.88 +0.89   3.65  +1.13  2.86  +0.88  +0.79 TP       14  12-17  LOW    medium
+2026-09-10 13:04  SHORT 4398.04 4395.32 4400.76 4395.32    +2.72 +1.00   6.13  +2.25  2.12  +0.78  +0.44 TP        5  12-17  LOW    deep
+2026-09-10 13:32  LONG  4390.16 4386.46 4386.46 4393.70    -3.70 -1.00   0.00  +0.00  4.44  +1.20    n/a SL        1  12-17  NORMAL deep
+2026-09-10 13:33  LONG  4386.28 4382.82 4382.82 4390.30    -3.46 -1.00   2.65  +0.77  4.75  +1.37  -1.31 SL        1  12-17  NORMAL deep
+2026-09-10 13:35  LONG  4382.57 4378.49 4378.49 4386.65    -4.08 -1.00   2.16  +0.53  4.76  +1.17  -1.89 SL        1  12-17  NORMAL deep
+2026-09-10 13:37  LONG  4378.22 4382.91 4373.53 4382.91    +4.69 +1.00   5.85  +1.25  0.41  +0.09  +0.80 TP        0  12-17  HIGH   deep
+2026-09-10 14:48  LONG  4381.55 4377.89 4377.89 4385.27    -3.66 -1.00   1.11  +0.30  5.16  +1.41  -3.30 SL        3  12-17  NORMAL medium
+2026-09-10 14:52  LONG  4377.00 4378.49 4372.88 4381.20    +1.49 +0.36   3.74  +0.91  1.20  +0.29  +0.40 TRAIL     3  12-17  NORMAL deep
+2026-09-10 19:09  LONG  4360.69 4355.80 4355.80 4365.64    -4.89 -1.00   0.87  +0.18  5.70  +1.17  -5.62 SL        2  17-24  HIGH   deep
+2026-09-10 20:41  LONG  4355.73 4358.06 4351.21 4360.31    +2.33 +0.52   4.42  +0.98  0.45  +0.10  +0.53 TRAIL     5  17-24  NORMAL deep
+2026-09-10 20:58  LONG  4351.89 4355.46 4347.84 4355.46    +3.57 +0.88   4.27  +1.05  1.00  +0.25  +0.84 TP        3  17-24  NORMAL deep
+2026-09-10 22:25  SHORT 4329.18 4327.81 4333.72 4324.64    +1.37 +0.30   3.89  +0.86  1.70  +0.37  +0.35 TRAIL     6  17-24  NORMAL deep
+2026-09-10 22:47  LONG  4323.08 4318.95 4318.95 4327.09    -4.26 -1.03   1.84  +0.45 37.17  +9.00  -2.32 SL      157  17-24  NORMAL touch
+2026-09-11 01:32  LONG  4316.96 4317.16 4314.17 4319.61    +0.20 +0.07   1.96  +0.70  1.34  +0.48  +0.10 TRAIL     4  00-07  LOW    deep
+2026-09-11 02:55  LONG  4312.70 4315.96 4309.44 4315.96    +3.26 +1.00   3.46  +1.06  1.83  +0.56  +0.94 TP        2  00-07  LOW    small
+2026-09-11 03:01  SHORT 4319.09 4322.69 4322.69 4314.39    -3.60 -1.00   1.47  +0.41  3.92  +1.09  -2.45 SL        5  00-07  NORMAL medium
+2026-09-11 03:46  SHORT 4329.50 4334.22 4334.22 4324.72    -4.72 -1.00   1.28  +0.27  8.48  +1.80  -3.69 SL       16  00-07  HIGH   deep
+2026-09-11 04:04  SHORT 4339.11 4334.07 4343.89 4334.07    +5.04 +1.05   5.39  +1.13  1.46  +0.31  +0.94 TP        4  00-07  HIGH   deep
+2026-09-11 05:32  LONG  4318.29 4318.36 4313.82 4322.76    +0.07 +0.02   2.41  +0.54  1.40  +0.31  +0.03 TRAIL     1  00-07  NORMAL deep
+2026-09-11 06:08  LONG  4316.00 4317.13 4311.45 4320.59    +1.13 +0.25   3.44  +0.76  0.41  +0.09  +0.33 TRAIL     2  00-07  NORMAL deep
+2026-09-11 06:43  SHORT 4312.12 4307.47 4316.61 4307.47    +4.65 +1.04   5.22  +1.16  0.54  +0.12  +0.89 TP        1  00-07  NORMAL medium
+2026-09-11 07:05  SHORT 4308.83 4313.65 4313.65 4304.29    -4.82 -1.00   0.18  +0.04  5.13  +1.06 -26.78 SL        2  07-12  HIGH   deep
+2026-09-11 07:07  SHORT 4313.48 4318.06 4318.06 4308.92    -4.58 -1.00   2.02  +0.44  4.41  +0.96  -2.27 SL        1  07-12  NORMAL medium
+2026-09-11 07:08  SHORT 4317.69 4322.38 4322.38 4313.00    -4.69 -1.00   3.81  +0.81  6.06  +1.29  -1.23 SL        1  07-12  HIGH   deep
+2026-09-11 07:10  SHORT 4321.99 4321.80 4326.77 4317.21    +0.19 +0.04   3.74  +0.78  1.76  +0.37  +0.05 TRAIL     2  07-12  HIGH   deep
+2026-09-11 08:15  SHORT 4337.94 4337.67 4342.90 4332.98    +0.27 +0.05   2.98  +0.60  1.00  +0.20  +0.09 TRAIL     3  07-12  HIGH   touch
+2026-09-11 10:27  LONG  4347.91 4343.88 4343.88 4351.94    -4.03 -1.00   0.92  +0.23  4.87  +1.21  -4.38 SL       11  07-12  NORMAL touch
+2026-09-11 10:52  LONG  4340.99 4343.91 4338.07 4343.91    +2.92 +1.00   3.49  +1.20  0.49  +0.17  +0.84 TP        3  07-12  LOW    medium
+2026-09-11 11:56  LONG  4348.31 4352.31 4344.31 4352.31    +4.00 +1.00   5.66  +1.41  2.79  +0.70  +0.71 TP        5  07-12  NORMAL medium
+2026-09-11 12:59  SHORT 4347.30 4344.68 4349.74 4344.68    +2.62 +1.07   5.92  +2.43  1.54  +0.63  +0.44 TP        3  12-17  LOW    deep
+2026-09-11 13:02  SHORT 4342.81 4345.33 4345.33 4339.63    -2.52 -1.00   1.43  +0.57  5.90  +2.34  -1.76 SL        0  12-17  LOW    deep
+2026-09-11 13:03  SHORT 4347.66 4343.93 4351.33 4343.93    +3.73 +1.02   4.13  +1.13  2.24  +0.61  +0.90 TP        7  12-17  NORMAL touch
+2026-09-11 13:57  LONG  4338.70 4338.91 4335.70 4341.70    +0.21 +0.07   1.77  +0.59  2.06  +0.69  +0.12 TRAIL     5  12-17  LOW    small
+2026-09-11 14:34  LONG  4333.37 4333.60 4329.09 4337.35    +0.23 +0.05   2.31  +0.54  3.31  +0.77  +0.10 TRAIL    12  12-17  NORMAL medium
+2026-09-11 15:05  LONG  4329.64 4330.28 4326.02 4333.48    +0.64 +0.18   2.68  +0.74  3.46  +0.96  +0.24 TRAIL     7  12-17  NORMAL small
+2026-09-11 18:58  LONG  4366.53 4368.21 4361.94 4371.38    +1.68 +0.37   4.21  +0.92  1.33  +0.29  +0.40 TRAIL     4  17-24  HIGH   small
+2026-09-11 19:15  LONG  4361.45 4361.75 4357.22 4365.70    +0.30 +0.07   2.52  +0.60  2.68  +0.63  +0.12 TRAIL     4  17-24  NORMAL deep
+2026-09-11 20:13  SHORT 4365.12 4369.39 4369.39 4360.85    -4.27 -1.00   1.60  +0.37  4.28  +1.00  -2.67 SL        7  17-24  NORMAL small
+2026-09-11 20:20  SHORT 4369.05 4368.24 4373.62 4364.48    +0.81 +0.18   2.97  +0.65  0.35  +0.08  +0.27 TRAIL     2  17-24  NORMAL small
+2026-09-11 20:25  SHORT 4369.09 4367.68 4373.30 4364.86    +1.41 +0.33   3.66  +0.87  0.76  +0.18  +0.39 TRAIL     5  17-24  NORMAL touch
+2026-09-11 20:39  LONG  4363.62 4359.81 4359.81 4367.43    -3.81 -1.00   0.00  +0.00  3.98  +1.04    n/a SL        7  17-24  NORMAL medium
+2026-09-11 20:59  LONG  4358.18 4358.59 4355.23 4361.15    +0.41 +0.14   1.94  +0.66  1.20  +0.41  +0.21 TRAIL     6  17-24  LOW    small
+2026-09-11 21:10  LONG  4354.00 4354.23 4350.90 4357.10    +0.23 +0.07   1.95  +0.63  0.23  +0.07  +0.12 TRAIL     1  17-24  LOW    small
+2026-09-11 21:14  LONG  4350.06 4346.36 4346.36 4353.76    -3.70 -1.00   0.07  +0.02  4.20  +1.14 -52.86 SL        0  17-24  NORMAL deep
+2026-09-11 21:15  LONG  4346.88 4350.89 4342.87 4350.89    +4.01 +1.00   4.31  +1.07  1.91  +0.48  +0.93 TP        3  17-24  NORMAL deep
+2026-09-11 22:16  SHORT 4352.13 4351.43 4355.90 4348.36    +0.70 +0.19   3.21  +0.85  1.74  +0.46  +0.22 TRAIL     6  17-24  NORMAL touch

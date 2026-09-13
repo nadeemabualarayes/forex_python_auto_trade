@@ -1,0 +1,413 @@
+======================================================================================================================================================
+EXIT-EFFICIENCY / MAE-MFE CHECKPOINT   XAUUSD  magic 998811   generated 2026-09-10 10:28 server
+profile: M1, RSI 35/65, SL/TP 2.0/2.0 ATR, trend=False, candles=off, manage=True, risk $5.00, one position at a time
+post-fix window: from 2026-09-07 14:26:39 server; bars 2026-08-12 07:29:00 -> 2026-09-10 10:28:00 (27810 M1 bars)
+======================================================================================================================================================
+
+A. EXECUTIVE SUMMARY
+
+  Question asked: are the trades that moved favourably before hitting SL a recurring exit-management
+  problem, or normal noise?
+
+  Answer from 95 post-fix trades: NOT primarily an exit problem, and no implementation bug was found.
+
+  1. Losers rarely got far. The 39 losing trades have a median MFE of 0.20R and a mean of 0.26R.
+     NONE of them ever reached +1.0R. Only 8 of 39 (20.5%) reached +0.5R and only 3 (7.7%) reached
+     +0.75R. The impression of "it was in profit and gave it all back" comes from 17 trades that
+     reached at least +0.25R, and their best excursion averaged +0.51R with a maximum of +0.99R.
+
+  2. The decisive counterfactual runs the other way. Any stop or breakeven rule tight enough to
+     rescue the 8 losers that reached +0.5R would also have breached the 17 winners (30.4% of all
+     winners) whose MAE was >= 0.5R. The current structure is roughly balanced, not leaking.
+
+  3. Where capture genuinely is low is the trailing stop: 33 managed exits averaged +0.76R of MFE and
+     realised +0.19R, a median efficiency of 0.24. But every one of those 33 is a WINNER. The trailing
+     stop is converting trades into small profits, not destroying large ones, so "low efficiency"
+     there is the mechanism working as designed rather than a defect.
+
+  4. The dominant problem is entry quality in the 07-12 session, not exits. Morning trades go against
+     the entry immediately and far: median MAE 1.08R versus 0.50R in the other sessions, and 59.5% of
+     them reach a full -1R adverse excursion versus 25.9% elsewhere. Their median MFE is 0.53R against
+     0.74R elsewhere. 62% of morning trades end at a full stop versus 28% elsewhere. The morning is
+     entering positions that were wrong from the first minute; better exits could not have saved them.
+
+  5. Sizing and execution are clean. All 95 trades were terminal-priced. The lot correctly scales with
+     the stop (0.01 x86, 0.02 x9 - narrow stops let $5 buy two minimum lots). Five trades (5.3%)
+     realised more than $5 of risk, all 0.01-lot trades where the market fill came in wider than the
+     quoted stop; the worst overshoot was $0.99. No sizing fault.
+
+  6. Correction to an earlier verbal report: lots are NOT always 0.01. Nine post-fix trades were sized
+     at 0.02 because their stop was narrow enough for the budget to afford it. That is correct
+     behaviour and it was mis-stated in an earlier chat summary.
+
+B. DATA INTEGRITY / METHODOLOGY
+  trades on record: 101  = 2 pre-fix (excluded) + 95 post-fix strategy + 4 closed by hand (excluded)
+  post-fix trades with no covering M1 bar : 0
+  post-fix trades with no journal SL      : 0
+  realised R > measured MFE R (impossible): 0   <- 0 means the excursion window is sound
+  full-SL exits realised R: mean -1.000  min -1.000  max -1.000 (expected ~ -1.00)
+  TP exits realised R     : mean +0.929  min +0.155  max +1.061 (expected ~ +1.00)
+  sensitivity: dropping the partial entry/exit bars lowers MFE R by 0.168 on average (78 trades have a fully-interior bar)
+  method:
+    - lifetime = broker entry fill -> broker exit fill; excursions from M1 bars whose minute falls in
+      [entry minute, exit minute]. The first and last bars are partial, so the headline MFE/MAE is an
+      UPPER bound; the sensitivity line above shows the effect of dropping them.
+    - no intrabar path is assumed: only each bar's high and low are used, never their order.
+    - bars are BID. Longs mark at the bid (bars used as-is); shorts mark at the ask, so each bar's own
+      stored spread is added to its high and low before measuring a short.
+    - R = |entry fill - initial SL| from the ENTRY journal row. Realised R = broker net / (R x 100 x lot).
+    - exit efficiency = realised R / MFE R, computed only where MFE R > 0.
+    - 'SL' = stop hit with no stop move; 'TRAIL' = stop hit after a breakeven/trail move; 'TP' = target.
+
+C. OVERALL MAE / MFE
+
+all / winners / losers
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+ALL post-fix                95   58.9   -35.97    2.46    2.23     0.66     0.72     0.73     0.72  -0.12  -4.02     76.9    76.8    66.3    44.2    23.2
+winners                     56  100.0  +108.99    3.58    3.28     0.94     0.87     0.38     0.29  +0.49   0.47        -   100.0    98.2    69.6    39.3
+losers                      39    0.0  -144.96    0.86    0.65     0.26     0.20     1.23     1.17  -1.00 -12.41     76.9    43.6    20.5     7.7     0.0
+
+by exit type
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+SL                          39    0.0  -144.96    0.86    0.65     0.26     0.20     1.23     1.17  -1.00 -12.41     76.9    43.6    20.5     7.7     0.0
+TRAIL                       33  100.0   +23.56    2.61    2.56     0.76     0.75     0.42     0.35  +0.19   0.24        -   100.0    97.0    48.5     3.0
+TP                          23  100.0   +85.43    4.97    4.62     1.20     1.13     0.32     0.17  +0.93   0.80        -   100.0   100.0   100.0    91.3
+
+D. EXIT EFFICIENCY (realised R vs the best R that was on the table before the exit)
+  trades with positive MFE: 86 of 95
+  efficiency mean -4.02  median +0.20  p25 -2.00  p75 +0.51
+  captured <= 0 of the available move: 34.9% of them
+
+  MFE reached by the whole post-fix set: >=0.25R 76.8%  >=0.5R 66.3%  >=0.75R 44.2%  >=1.0R 23.2%
+
+E. THE FOUR FOCUS GROUPS
+
+A: full SL after >= +0.25R MFE | B: small win after >= +1R MFE | C: managed exits | D: TP
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+A full-SL, MFE>=0.25R       17    0.0   -61.96    1.66    1.30     0.51     0.50     1.20     1.11  -1.00  -2.24    100.0   100.0    47.1    17.6     0.0
+B small win, MFE>=1R         1  100.0    +1.15    2.83    2.83     1.01     1.01     0.13     0.13  +0.41   0.41        -   100.0   100.0   100.0   100.0
+C managed exits             33  100.0   +23.56    2.61    2.56     0.76     0.75     0.42     0.35  +0.19   0.24        -   100.0    97.0    48.5     3.0
+D TP exits                  23  100.0   +85.43    4.97    4.62     1.20     1.13     0.32     0.17  +0.93   0.80        -   100.0   100.0   100.0    91.3
+
+  A as a share of all full-SL exits: 17/39 = 43.6%
+  A: mean MFE +0.51R, median +0.50R, max +0.99R; total forgone 8.6R across 17 trades
+  B: mean realised +0.41R against mean MFE +1.01R
+
+F. BY SESSION (server hours)
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+00-07                       15   73.3    +2.02    2.33    2.19     0.67     0.69     0.59     0.47  +0.03  -0.20     50.0    80.0    73.3    40.0    20.0
+07-12                       37   37.8   -57.19    1.94    1.25     0.52     0.53     0.91     1.08  -0.41  -3.91     78.3    62.2    51.4    37.8    16.2
+12-17                       26   69.2    +8.90    2.71    2.74     0.76     0.80     0.67     0.52  +0.08  -1.50     87.5    88.5    76.9    53.8    34.6
+17-24                       17   76.5   +10.30    3.35    2.56     0.81     0.72     0.53     0.52  +0.08 -11.30     75.0    88.2    76.5    47.1    23.5
+
+J. BY DIRECTION
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+LONG                        53   58.5   -28.50    2.44    1.97     0.65     0.63     0.77     0.81  -0.13  -5.91     72.7    71.7    66.0    41.5    22.6
+SHORT                       42   59.5    -7.47    2.50    2.58     0.67     0.74     0.67     0.54  -0.10  -1.75     82.4    83.3    66.7    47.6    23.8
+
+I. BY ATR REGIME
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+LOW                         33   54.5   -32.08    1.56    1.56     0.57     0.61     0.81     0.93  -0.26  -3.15     80.0    75.8    63.6    33.3    15.2
+NORMAL                      49   57.1   -16.75    2.56    2.60     0.66     0.75     0.71     0.68  -0.11  -5.57     76.2    75.5    65.3    49.0    24.5
+HIGH                        13   76.9   +12.86    4.38    3.70     0.88     0.79     0.57     0.35  +0.20  -0.53     66.7    84.6    76.9    53.8    38.5
+
+H. BY BB PENETRATION
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+touch                       16   56.2    -2.01    2.73    3.20     0.71     0.73     0.67     0.68  -0.08  -1.28     71.4    81.2    62.5    43.8    31.2
+small                       31   77.4   +28.40    3.21    2.83     0.81     0.85     0.56     0.44  +0.20  -0.25     57.1    83.9    77.4    58.1    35.5
+medium                      21   42.9   -34.95    1.60    1.56     0.50     0.53     0.84     1.04  -0.41 -13.83     83.3    66.7    57.1    33.3    14.3
+deep                        27   51.9   -27.41    2.12    2.06     0.58     0.60     0.87     0.99  -0.28  -2.33     84.6    74.1    63.0    37.0    11.1
+
+F2. 07-12 ANATOMY vs THE REST
+
+morning vs rest
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+07-12                       37   37.8   -57.19    1.94    1.25     0.52     0.53     0.91     1.08  -0.41  -3.91     78.3    62.2    51.4    37.8    16.2
+other sessions              58   72.4   +21.22    2.80    2.43     0.75     0.74     0.61     0.50  +0.07  -4.09     75.0    86.2    75.9    48.3    27.6
+  07-12 exit mix : SL 23, TRAIL 7, TP 7
+  other exit mix : SL 16, TRAIL 26, TP 16
+
+07-12 by direction
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+LONG                        21   38.1   -39.20    1.95    1.25     0.52     0.53     0.90     1.08  -0.43  -4.43     84.6    61.9    52.4    33.3    14.3
+SHORT                       16   37.5   -17.99    1.92    1.24     0.52     0.45     0.93     1.08  -0.38  -3.14     70.0    62.5    50.0    43.8    18.8
+
+07-12 by ATR regime
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+LOW                         12   25.0   -27.17    1.02    0.79     0.41     0.34     1.14     1.12  -0.63  -7.67     77.8    58.3    41.7    25.0     8.3
+NORMAL                      20   40.0   -22.39    2.43    2.65     0.60     0.66     0.87     1.08  -0.31  -2.31     83.3    65.0    55.0    50.0    25.0
+HIGH                         5   60.0    -7.63    2.15    3.14     0.46     0.63     0.53     0.26  -0.30  -1.70     50.0    60.0    60.0    20.0     0.0
+
+07-12 by penetration
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+touch                        7   42.9   -11.84    2.11    3.14     0.51     0.63     0.80     1.08  -0.47  -2.81     75.0    71.4    57.1    28.6     0.0
+small                        9   66.7    +2.90    3.04    3.61     0.75     0.87     0.71     0.74  +0.07  -0.36     66.7    77.8    77.8    66.7    33.3
+medium                      11   18.2   -28.28    1.40    0.67     0.41     0.33     1.03     1.09  -0.64  -8.03     88.9    54.5    36.4    27.3    18.2
+deep                        10   30.0   -19.97    1.40    0.91     0.42     0.29     1.04     1.12  -0.55  -3.12     71.4    50.0    40.0    30.0    10.0
+  07-12 per day: 2026-09-08: 11 trades -19.89, 2026-09-09: 11 trades -8.34, 2026-09-10: 15 trades -28.96
+
+G. 17-24 LONG vs OTHER LONG
+
+evening longs
+group                        n   win%     net$  avgMFE  medMFE  avgMFEr  medMFEr  avgMAEr  medMAEr   avgR    eff  SL+MFE% >=0.25R  >=0.5R >=0.75R  >=1.0R
+17-24 LONG                  12   83.3   +11.22    3.57    2.60     0.84     0.77     0.54     0.52  +0.17 -16.21     50.0    83.3    83.3    50.0    25.0
+other LONG                  41   51.2   -39.72    2.10    1.82     0.59     0.58     0.84     0.99  -0.22  -2.76     75.0    68.3    61.0    39.0    22.0
+17-24 SHORT                  5   60.0    -0.92    2.83    2.56     0.74     0.72     0.51     0.42  -0.15  -0.49    100.0   100.0    60.0    40.0    20.0
+
+K. EXECUTION / SIZING SANITY CHECK
+  post-fix trades: 95
+  lot sizes used: 0.01 x86, 0.02 x9
+    the lot is NOT pinned to the broker minimum: it scales with the stop. $5 / (stop x 100)
+    buys 0.02 lots whenever the stop is <= 2.50, and 0.01 above that, floored to the 0.01 step.
+    lot 0.01: stop 2.53-5.99, risk $2.53-$5.99
+    lot 0.02: stop 2.03-2.50, risk $4.06-$5.00
+
+  realised risk at the initial stop above $5.00: 5 of 95
+    2026-09-08 08:30 LONG  lot 0.01 stop 5.99 -> $5.99 (over by $0.99)
+    2026-09-08 09:02 LONG  lot 0.01 stop 5.02 -> $5.02 (over by $0.02)
+    2026-09-08 19:10 LONG  lot 0.01 stop 5.03 -> $5.03 (over by $0.03)
+    2026-09-09 17:56 LONG  lot 0.01 stop 5.65 -> $5.65 (over by $0.65)
+    2026-09-10 05:06 SHORT lot 0.01 stop 5.05 -> $5.05 (over by $0.05)
+    all 5 are 0.01-lot trades: 0.01 is the broker minimum, so the only way to hold the
+    budget would have been to skip the trade. The lot rule sized them correctly against the QUOTED
+    stop; the realised stop came out wider because the market fill differed from the quote
+    (XAUUSD is Market execution here, so the order's requested price is ignored). A signal whose
+    QUOTED stop already exceeds the budget is refused up front - the min-lot SKIP lines in the log.
+  risk at stop across the set: min $2.53  median $3.79  max $5.99  mean $3.79
+  worst-case overshoot $0.99 on a $5.00 budget = 20% - bounded and rare (5.3% of trades).
+
+==================================================================================================
+APPENDIX: EVERY POST-FIX TRADE
+entry (server)   side      entry  stop  risk$    net$      R    MFE   MFEr    MAE   MAEr    eff  exit     min  sess  regime pen
+2026-09-07 14:33  LONG    4385.11  4.79   4.79   +1.37  +0.29   3.95  +0.82   4.08  +0.85  +0.35  TRAIL      8  12-17 HIGH   small
+2026-09-07 15:26  SHORT   4394.40  2.80   2.80   -2.80  -1.00   1.19  +0.42   2.72  +0.97  -2.35  SL         5  12-17 LOW    small
+2026-09-07 15:32  SHORT   4396.41  2.88   2.88   +2.88  +1.00   3.19  +1.11   0.48  +0.17  +0.90  TP         3  12-17 LOW    small
+2026-09-07 16:06  SHORT   4401.69  3.97   3.97   -3.97  -1.00   2.18  +0.55   5.46  +1.38  -1.82  SL        25  12-17 NORMAL deep
+2026-09-08 08:25  LONG    4425.03  3.54   3.54   -3.54  -1.00   0.27  +0.08   3.82  +1.08 -13.11  SL         3  07-12 NORMAL touch
+2026-09-08 08:28  LONG    4422.31  3.46   3.46   -3.46  -1.00   3.43  +0.99   4.33  +1.25  -1.01  SL         1  07-12 NORMAL touch
+2026-09-08 08:30  LONG    4420.64  5.99   5.99   +0.93  +0.16   5.10  +0.85   2.66  +0.44  +0.18  TP         0  07-12 NORMAL small
+2026-09-08 08:55  LONG    4420.04  4.32   4.32   -4.32  -1.00   0.96  +0.22   5.47  +1.27  -4.50  SL         6  07-12 NORMAL small
+2026-09-08 09:02  LONG    4415.80  5.02   5.02   -5.02  -1.00   0.00  +0.00   5.09  +1.01    -    SL         9  07-12 HIGH   small
+2026-09-08 09:13  LONG    4409.27  4.98   4.98   +0.46  +0.09   3.14  +0.63   0.96  +0.19  +0.15  TRAIL      2  07-12 HIGH   touch
+2026-09-08 09:20  LONG    4402.30  4.66   4.66   +1.03  +0.22   3.70  +0.79   1.20  +0.26  +0.28  TRAIL      3  07-12 HIGH   deep
+2026-09-08 09:44  SHORT   4407.63  4.27   4.27   +1.75  +0.41   3.67  +0.86   1.79  +0.42  +0.48  TRAIL     10  07-12 NORMAL touch
+2026-09-08 10:35  LONG    4398.35  4.17   4.17   -4.17  -1.00   0.65  +0.16   6.61  +1.59  -6.42  SL         4  07-12 NORMAL deep
+2026-09-08 10:39  LONG    4394.98  4.31   4.31   -4.31  -1.00   2.30  +0.53   4.79  +1.11  -1.87  SL        15  07-12 NORMAL medium
+2026-09-08 11:49  LONG    4391.63  4.43   4.43   +0.76  +0.17   3.27  +0.74   0.58  +0.13  +0.23  TRAIL      1  07-12 HIGH   touch
+2026-09-08 12:06  SHORT   4397.40  3.10   3.10   +0.67  +0.22   2.65  +0.85   0.67  +0.22  +0.25  TRAIL      5  12-17 LOW    small
+2026-09-08 12:27  LONG    4393.76  3.12   3.12   +2.88  +0.92   3.76  +1.21   2.91  +0.93  +0.77  TP         5  12-17 LOW    touch
+2026-09-08 12:41  SHORT   4399.15  3.79   3.79   -3.79  -1.00   0.16  +0.04   4.48  +1.18 -23.69  SL         0  12-17 NORMAL deep
+2026-09-08 12:42  SHORT   4402.12  4.21   4.21   +0.25  +0.06   2.51  +0.60   1.64  +0.39  +0.10  TRAIL      2  12-17 NORMAL deep
+2026-09-08 13:05  LONG    4398.79  2.72   2.72   -2.72  -1.00   0.00  +0.00   4.04  +1.49    -    SL         5  12-17 LOW    medium
+2026-09-08 13:21  SHORT   4405.22  3.83   3.83   +0.40  +0.10   2.94  +0.77   0.58  +0.15  +0.14  TRAIL      0  12-17 NORMAL deep
+2026-09-08 13:22  SHORT   4403.54  4.46   4.46   +4.00  +0.90   4.88  +1.09   0.41  +0.09  +0.82  TP         7  12-17 NORMAL small
+2026-09-08 14:09  LONG    4394.14  3.44   3.44   +3.16  +0.92   5.25  +1.53   0.46  +0.13  +0.60  TP         0  12-17 NORMAL touch
+2026-09-08 14:13  LONG    4391.63  4.03   4.03   +4.03  +1.00   5.02  +1.25   0.56  +0.14  +0.80  TP         2  12-17 NORMAL small
+2026-09-08 14:36  SHORT   4405.16  2.60   2.60   -2.60  -1.00   0.92  +0.35   2.83  +1.09  -2.83  SL         1  12-17 LOW    touch
+2026-09-08 14:37  SHORT   4407.70  2.79   2.79   +1.15  +0.41   2.83  +1.01   0.36  +0.13  +0.41  TRAIL      3  12-17 LOW    medium
+2026-09-08 15:13  LONG    4393.98  4.61   4.61   -4.61  -1.00   1.30  +0.28   8.68  +1.88  -3.55  SL         2  12-17 HIGH   deep
+2026-09-08 15:15  LONG    4389.02  4.61   4.61   +4.89  +1.06   5.66  +1.23   3.72  +0.81  +0.86  TP         5  12-17 HIGH   deep
+2026-09-08 19:00  LONG    4395.07  3.64   3.64   -3.64  -1.00   0.02  +0.01   3.92  +1.08-182.00  SL         2  17-24 NORMAL medium
+2026-09-08 19:02  LONG    4391.89  3.68   3.68   +1.12  +0.30   3.05  +0.83   0.74  +0.20  +0.37  TRAIL      4  17-24 NORMAL medium
+2026-09-08 19:10  LONG    4382.64  5.03   5.03   +0.24  +0.05   2.91  +0.58   1.76  +0.35  +0.08  TRAIL      0  17-24 HIGH   deep
+2026-09-08 20:06  SHORT   4401.04  4.57   4.57   +4.65  +1.02   5.65  +1.24   0.32  +0.07  +0.82  TP         6  17-24 HIGH   touch
+2026-09-08 20:41  LONG    4387.39  3.30   3.30   +0.50  +0.15   2.06  +0.62   2.26  +0.68  +0.24  TRAIL     14  17-24 NORMAL deep
+2026-09-08 21:10  LONG    4384.80  2.88   2.88   +0.55  +0.19   2.08  +0.72   0.84  +0.29  +0.26  TRAIL      3  17-24 LOW    small
+2026-09-08 21:31  LONG    4383.37  2.81   2.81   +0.06  +0.02   2.29  +0.81   1.97  +0.70  +0.03  TRAIL     13  17-24 LOW    medium
+2026-09-08 22:34  LONG    4362.04  4.32   4.32   +4.28  +0.99   4.66  +1.08   0.62  +0.14  +0.92  TP         1  17-24 NORMAL deep
+2026-09-09 07:00  LONG    4375.39  2.04   4.08   -4.08  -1.00   0.67  +0.33   3.41  +1.67  -3.04  SL         6  07-12 LOW    medium
+2026-09-09 07:07  LONG    4372.53  2.03   4.06   +1.24  +0.31   1.82  +0.90   2.01  +0.99  +0.34  TRAIL      9  07-12 LOW    deep
+2026-09-09 07:24  SHORT   4376.24  2.55   2.55   -2.55  -1.00   0.16  +0.06   3.37  +1.32 -15.94  SL         3  07-12 LOW    medium
+2026-09-09 08:37  SHORT   4389.87  4.17   4.17   -4.17  -1.00   0.00  +0.00   4.89  +1.17    -    SL         6  07-12 NORMAL touch
+2026-09-09 09:04  SHORT   4402.45  3.91   3.91   +1.42  +0.36   3.61  +0.92   2.88  +0.74  +0.39  TRAIL      9  07-12 NORMAL small
+2026-09-09 09:29  LONG    4395.55  3.70   3.70   +3.70  +1.00   3.97  +1.07   0.42  +0.11  +0.93  TP         1  07-12 NORMAL medium
+2026-09-09 09:39  SHORT   4405.44  4.05   4.05   +3.87  +0.96   4.92  +1.21   0.54  +0.13  +0.79  TP         3  07-12 NORMAL small
+2026-09-09 10:06  SHORT   4403.39  2.55   2.55   -2.55  -1.00   0.91  +0.36   2.75  +1.08  -2.80  SL         6  07-12 LOW    deep
+2026-09-09 10:13  SHORT   4405.70  3.09   3.09   +0.58  +0.19   2.69  +0.87   2.22  +0.72  +0.22  TRAIL      7  07-12 LOW    small
+2026-09-09 10:40  SHORT   4409.93  2.66   2.66   -2.66  -1.00   1.45  +0.55   2.90  +1.09  -1.83  SL         6  07-12 LOW    small
+2026-09-09 11:11  LONG    4405.41  3.14   3.14   -3.14  -1.00   1.13  +0.36   3.42  +1.09  -2.78  SL         7  07-12 NORMAL medium
+2026-09-09 12:47  LONG    4394.72  2.45   4.90   -4.90  -1.00   1.27  +0.52   2.54  +1.04  -1.93  SL         4  12-17 LOW    medium
+2026-09-09 12:51  LONG    4392.59  2.73   2.73   +0.02  +0.01   1.50  +0.55   0.46  +0.17  +0.01  TRAIL      2  12-17 LOW    small
+2026-09-09 12:55  LONG    4391.24  2.87   2.87   -2.87  -1.00   0.27  +0.09   4.93  +1.72 -10.63  SL         6  12-17 LOW    small
+2026-09-09 13:02  LONG    4386.85  3.38   3.38   +3.46  +1.02   3.98  +1.18   0.75  +0.22  +0.87  TP         1  12-17 NORMAL small
+2026-09-09 13:21  SHORT   4395.34  3.07   3.07   +0.67  +0.22   2.23  +0.73   0.36  +0.12  +0.30  TRAIL      7  12-17 LOW    touch
+2026-09-09 13:56  SHORT   4402.84  3.13   3.13   +2.95  +0.94   3.30  +1.05   0.23  +0.07  +0.89  TP         3  12-17 LOW    touch
+2026-09-09 14:27  SHORT   4407.66  2.70   2.70   +0.30  +0.11   1.97  +0.73   1.47  +0.54  +0.15  TRAIL      5  12-17 LOW    deep
+2026-09-09 14:50  SHORT   4413.22  4.28   4.28   +3.42  +0.80   4.04  +0.94   2.11  +0.49  +0.85  TP         1  12-17 NORMAL deep
+2026-09-09 14:51  SHORT   4409.33  3.93   3.93   +0.66  +0.17   3.40  +0.87   3.99  +1.02  +0.19  TRAIL      6  12-17 NORMAL deep
+2026-09-09 17:56  LONG    4417.77  5.65   5.65   +4.15  +0.73  14.23  +2.52   2.92  +0.52  +0.29  TP         4  17-24 HIGH   small
+2026-09-09 19:19  LONG    4392.26  4.97   4.97   +4.89  +0.98   6.34  +1.28   0.84  +0.17  +0.77  TP         5  17-24 HIGH   touch
+2026-09-09 19:45  SHORT   4407.61  4.08   4.08   +0.03  +0.01   1.94  +0.48   1.72  +0.42  +0.02  TRAIL      9  17-24 NORMAL small
+2026-09-09 20:01  SHORT   4410.44  3.38   3.38   -3.38  -1.00   1.38  +0.41   3.61  +1.07  -2.45  SL         1  17-24 NORMAL touch
+2026-09-09 20:07  SHORT   4417.77  3.07   3.07   -3.07  -1.00   2.60  +0.85   2.84  +0.93  -1.18  SL        19  17-24 NORMAL deep
+2026-09-09 20:32  LONG    4413.67  3.74   3.74   +1.82  +0.49   3.47  +0.93   1.96  +0.52  +0.52  TRAIL     11  17-24 NORMAL small
+2026-09-09 21:14  SHORT   4420.79  3.54   3.54   +0.85  +0.24   2.56  +0.72   0.29  +0.08  +0.33  TRAIL      2  17-24 NORMAL small
+2026-09-09 21:32  LONG    4415.15  2.45   4.90   +0.62  +0.13   1.70  +0.69   1.54  +0.63  +0.18  TRAIL      2  17-24 LOW    medium
+2026-09-09 21:42  LONG    4412.40  3.37   3.37   -3.37  -1.00   0.00  +0.00   4.11  +1.22    -    SL         4  17-24 NORMAL small
+2026-09-10 01:02  SHORT   4404.81  3.67   3.67   +0.48  +0.13   2.34  +0.64   1.94  +0.53  +0.21  TRAIL      9  00-07 NORMAL deep
+2026-09-10 01:49  LONG    4399.49  2.57   2.57   +0.17  +0.07   1.56  +0.61   1.96  +0.76  +0.11  TRAIL     10  00-07 LOW    medium
+2026-09-10 02:33  LONG    4395.10  3.54   3.54   -3.54  -1.00   0.00  +0.00   4.24  +1.20    -    SL        28  00-07 NORMAL small
+2026-09-10 03:01  LONG    4392.03  2.07   4.14   -4.14  -1.00   0.41  +0.20   2.31  +1.12  -5.05  SL         0  00-07 LOW    deep
+2026-09-10 03:02  LONG    4390.18  2.15   4.30   +1.16  +0.27   1.89  +0.88   0.57  +0.27  +0.31  TRAIL      3  00-07 LOW    deep
+2026-09-10 03:30  LONG    4393.07  3.28   3.28   +0.05  +0.02   1.91  +0.58   0.63  +0.19  +0.03  TRAIL      1  00-07 NORMAL medium
+2026-09-10 03:41  SHORT   4399.30  3.78   3.78   +0.72  +0.19   2.83  +0.75   0.90  +0.24  +0.25  TRAIL      2  00-07 NORMAL small
+2026-09-10 03:54  SHORT   4404.31  3.66   3.66   +1.42  +0.39   3.48  +0.95   0.63  +0.17  +0.41  TRAIL      5  00-07 NORMAL medium
+2026-09-10 04:01  SHORT   4407.82  4.44   4.44   -4.44  -1.00   2.20  +0.50   5.33  +1.20  -2.02  SL         2  00-07 NORMAL deep
+2026-09-10 04:47  SHORT   4412.89  4.16   4.16   +4.16  +1.00   4.56  +1.10   1.75  +0.42  +0.91  TP         7  00-07 NORMAL small
+2026-09-10 05:06  SHORT   4418.17  5.05   5.05   +4.91  +0.97   6.14  +1.22   0.70  +0.14  +0.80  TP         6  00-07 HIGH   small
+2026-09-10 06:06  LONG    4416.26  3.39   3.39   -3.39  -1.00   0.00  +0.00   4.79  +1.41    -    SL         2  00-07 NORMAL touch
+2026-09-10 06:08  LONG    4413.19  3.42   3.42   +3.42  +1.00   3.50  +1.02   1.72  +0.50  +0.98  TP         2  00-07 NORMAL small
+2026-09-10 06:27  LONG    4410.50  2.85   2.85   +0.51  +0.18   1.97  +0.69   1.34  +0.47  +0.26  TRAIL      6  00-07 LOW    small
+2026-09-10 06:42  LONG    4407.77  2.53   2.53   +0.53  +0.21   2.19  +0.87   0.74  +0.29  +0.24  TRAIL      7  00-07 LOW    small
+2026-09-10 07:05  SHORT   4412.63  2.20   4.40   -4.40  -1.00   0.20  +0.09   2.95  +1.34 -11.00  SL         6  07-12 LOW    deep
+2026-09-10 07:30  LONG    4412.43  2.26   4.52   -4.52  -1.00   1.25  +0.55   2.58  +1.14  -1.81  SL         6  07-12 LOW    deep
+2026-09-10 07:39  LONG    4408.57  2.50   5.00   -5.00  -1.00   0.06  +0.02   2.69  +1.08 -41.67  SL         2  07-12 LOW    medium
+2026-09-10 07:41  LONG    4406.35  2.64   2.64   +2.64  +1.00   3.00  +1.14   0.88  +0.33  +0.88  TP         6  07-12 LOW    medium
+2026-09-10 08:08  SHORT   4412.64  2.91   2.91   -2.91  -1.00   0.00  +0.00   4.10  +1.41    -    SL         1  07-12 LOW    deep
+2026-09-10 08:10  SHORT   4414.54  2.96   2.96   -2.96  -1.00   0.00  +0.00   4.33  +1.46    -    SL         3  07-12 LOW    medium
+2026-09-10 08:14  SHORT   4418.08  3.64   3.64   -3.64  -1.00   1.02  +0.28   4.86  +1.34  -3.57  SL        16  07-12 NORMAL touch
+2026-09-10 08:33  SHORT   4426.46  4.06   4.06   +4.06  +1.00   4.59  +1.13   1.39  +0.34  +0.88  TP         6  07-12 NORMAL deep
+2026-09-10 09:13  LONG    4419.09  4.86   4.86   -4.86  -1.00   0.65  +0.13   5.05  +1.04  -7.48  SL         2  07-12 HIGH   medium
+2026-09-10 09:15  LONG    4414.39  4.21   4.21   +4.21  +1.00   4.62  +1.10   3.54  +0.84  +0.91  TP        14  07-12 NORMAL small
+2026-09-10 09:41  SHORT   4420.99  3.89   3.89   -3.89  -1.00   0.48  +0.12   3.86  +0.99  -8.10  SL         1  07-12 NORMAL medium
+2026-09-10 09:42  SHORT   4424.60  3.83   3.83   -3.83  -1.00   3.00  +0.78   4.37  +1.14  -1.28  SL         3  07-12 NORMAL medium
+2026-09-10 09:46  SHORT   4428.38  3.89   3.89   +3.89  +1.00   4.04  +1.04   0.59  +0.15  +0.96  TP         1  07-12 NORMAL small
+2026-09-10 10:02  LONG    4419.57  3.69   3.69   -3.69  -1.00   0.00  +0.00   4.04  +1.09    -    SL         1  07-12 NORMAL deep
+2026-09-10 10:03  LONG    4416.42  4.06   4.06   -4.06  -1.00   0.91  +0.22   4.87  +1.20  -4.46  SL        11  07-12 NORMAL deep
+
+
+==================================================================================================
+SUPPLEMENT: SL/TP STRUCTURE EVIDENCE (for section L5)
+==================================================================================================
+SL/TP STRUCTURE EVIDENCE (counterfactual bounds, NOT a simulation of a changed strategy)
+  winners whose MAE would have breached a tighter stop:
+    stop at 0.5R: 17 of 56 winners (30.4%) had MAE >= 0.5R and would likely have been stopped
+    stop at 0.75R: 7 of 56 winners (12.5%) had MAE >= 0.75R and would likely have been stopped
+  losers that reached a nearer target before failing:
+    target at 0.25R: 17 of 39 losers (43.6%) reached >= 0.25R MFE first
+    target at 0.5R: 8 of 39 losers (20.5%) reached >= 0.5R MFE first
+    target at 0.75R: 3 of 39 losers (7.7%) reached >= 0.75R MFE first
+  profit concentration: TP exits 23 trades = $+85.43; TRAIL exits 33 = $+23.56; SL exits 39 = $-144.96
+  MAE distribution (all): median 0.72R, p75 1.10R, p90 1.34R
+  MFE distribution (all): median 0.72R, p75 0.95R, p90 1.16R
+  exit efficiency: median +0.20; the MEAN (-4.02) is meaningless because
+    losers with a near-zero MFE divide -1R by ~0, producing huge negative outliers. Use the median.
+  07-12 MAE >= 1.0R: 59.5% of morning trades vs 25.9% elsewhere
+  07-12 median duration 6 min vs 4 min elsewhere
+
+==================================================================================================
+L. WHAT THE DATA SUGGESTS
+==================================================================================================
+
+  L1. There is no exit-management bug.
+      Full stops realise exactly -1.000R (mean, min and max all -1.000), targets realise +0.93R on
+      average, and not one trade shows a realised R above its measured MFE. The machinery does what
+      it says. The "gave back a winner" cases exist but are small and few: 17 trades, mean +0.51R of
+      forgone excursion, 8.6R in total across the whole 95-trade set.
+
+  L2. The 07-12 session is an ENTRY problem, and it is the whole loss.
+      07-12: 37 trades, 37.8% win, -$57.19. Everything else together: 58 trades, 72.4% win, +$21.22.
+      The morning's signature is adverse-from-the-start, not badly-exited:
+        - median MAE 1.08R vs 0.50R elsewhere; 59.5% hit a full -1R adverse move vs 25.9% elsewhere
+        - median MFE 0.53R vs 0.74R elsewhere
+        - exit mix 23 SL / 7 TRAIL / 7 TP vs 16 SL / 26 TRAIL / 16 TP elsewhere
+        - both directions are equally bad (LONG -0.43R, SHORT -0.38R), so it is not a directional bias
+        - worst in the LOW ATR tercile (-0.63R avg) and in medium/deep penetration
+        - it lost on all three days it traded: -19.89, -8.34, -28.96
+      A mean-reversion rule with no trend filter is fading the London-open expansion; that is the
+      most plausible mechanism, but this data cannot confirm the mechanism.
+
+  L3. Penetration depth orders exactly as the excursion data would predict.
+      small: MFE 0.81R / MAE 0.56R, +$28.40, 77.4% win
+      touch: MFE 0.71R / MAE 0.67R, -$2.01
+      deep:  MFE 0.58R / MAE 0.87R, -$27.41
+      medium:MFE 0.50R / MAE 0.84R, -$34.95
+      Shallow entries get more favourable movement and less adverse movement than deep ones. The
+      medium bucket being worse than deep is the one inversion and looks like small-sample noise.
+
+  L4. 17-24 LONG does look structurally different, on 12 trades.
+      MFE 0.84R avg vs 0.59R for other longs; MAE 0.54R vs 0.84R. The excursion profile, not just the
+      P&L, separates it. This directly contradicts backtest Experiment 3, which predicted evening
+      longs were structurally WEAK. Twelve trades cannot settle it either way, but it is now clear
+      that adopting the Experiment 3 filter would have been a mistake.
+
+  L5. The 2.0/2.0 ATR structure - evidence both ways, no conclusion drawn.
+      Against the current structure:
+        - only 23.2% of trades ever reach +1.0R MFE, so the target is unreachable for three trades in four
+        - 66.3% reach +0.5R, so a nearer target would convert far more trades
+        - median MFE (0.72R) and median MAE (0.72R) are identical: the typical trade travels about as
+          far against as it does for, which is not what a 1:1 target/stop wants to see
+      For the current structure:
+        - the 23 TP exits produce $85.43 of the $108.99 of gross profit; a nearer target halves them
+        - a 0.5R stop would have breached 30.4% of the winners while saving only 20.5% of the losers
+        - the trailing stop already harvests the sub-1R moves: 33 managed exits, all winners
+      Net: the structure is not obviously mismatched, and the two adjustments that look attractive in
+      isolation (nearer target, tighter stop) each cost more than they gain on this sample.
+
+==================================================================================================
+M. WHAT THE DATA DOES NOT PROVE
+==================================================================================================
+
+  M1. Sample size. 95 trades over four days, from a single instrument, in one volatility regime.
+      Sub-groups are far smaller: 17-24 LONG is 12 trades, HIGH ATR is 13, the 07-12 LOW-ATR cell is 12.
+      Nothing here reaches statistical significance and no cell should be acted on alone.
+
+  M2. Four days is not a regime sample. The whole window is 7-10 September 2026. A single news cycle,
+      a single directional bias in gold, or one unusual London session could produce the entire 07-12
+      result. Three losing mornings in a row is suggestive, not conclusive.
+
+  M3. Intrabar path is unknown. MFE and MAE come from M1 highs and lows. Whether price reached the
+      favourable extreme before or after the adverse one inside a bar cannot be recovered, so any
+      "we could have exited at +X" reading is an upper bound, not an achievable result.
+
+  M4. Partial first and last bars inflate the headline excursions. Dropping them lowers MFE by 0.168R
+      on average. The direction of every comparison in this report survives that adjustment, but the
+      absolute levels are optimistic.
+
+  M5. Counterfactual stop/target levels are bounds, not simulations. "A 0.5R stop would have breached
+      30.4% of winners" assumes the adverse extreme was touched, which the bar data supports, but it
+      does not model what the trailing logic would then have done differently, nor the different
+      sequence of trades that would have followed (one position at a time means every changed exit
+      changes which later signals are even seen).
+
+  M6. Selection pressure. The session, penetration and ATR splits were all chosen after looking at
+      this same data. That is the exact error that made backtest Experiments 1-3 inconclusive, and
+      L4 shows one of those experiments has now been contradicted by forward data.
+
+  M7. This profile is not the evaluation profile. M1, RSI 35/65, no trend filter, no candle
+      confirmation, trailing on. Nothing here transfers to the evaluation bot on main.
+
+  M8. Manual interference exists in the account. Four positions opened by the strategy were closed by
+      hand from the mobile terminal, and six unrelated manual XAUUSD orders plus two GBPUSD orders
+      were placed on 8-9 September. Those are excluded from every number above, but they show the
+      account is not a sealed experiment.
+
+==================================================================================================
+N. EXPLICIT RECOMMENDATION
+==================================================================================================
+
+  CONTINUE FORWARD VALIDATION.
+
+  Reasoning:
+    - The primary research question is answered in the negative: there is no exit-management defect
+      and no implementation bug. Full stops, targets, trailing moves, sizing and R accounting all
+      reconcile exactly against the broker's own deals.
+    - The one strong pattern (07-12) is an entry-side observation resting on three days and 37
+      trades, and it was selected after seeing the data. It is precisely the kind of finding that
+      Experiments 1-3 taught us not to act on early - and L4 shows a previous such finding has since
+      reversed under forward data.
+    - No change is warranted or made. Configuration stays locked: $5 budget, RSI 35/65, 2.0/2.0 ATR,
+      XAUUSD only, one position at a time, trailing on.
+
+  What would change the picture, in order of value:
+    1. More days. The 07-12 result needs to hold across a fortnight and across different volatility
+       weeks before it means anything.
+    2. A clean 00-07 sample. That session only has 15 trades because the machine slept through most
+       nights; the power plan still needs fixing for that window to fill in.
+    3. Stop the manual trading on this account, so the forward set stays sealed.
+
+  No ADOPT/REJECT is offered for any strategy modification, as instructed.
+
+==================================================================================================
+END OF REPORT - research only; no code, config, strategy or bot state was changed to produce it.
+==================================================================================================
