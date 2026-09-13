@@ -1,6 +1,7 @@
 """Tick-path recorder: raw broker ticks per open bot position, for exit research. Observability only."""
 import json
 import os
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -172,9 +173,11 @@ class FakeTerminal:
             return None
         return tuple(self.positions.values())
 
-    def history_deals_get(self, position=None):
+    def history_deals_get(self, date_from=None, date_to=None, position=None):
         self._guard()
-        return tuple(self.deals.get(position, ()))
+        if position is not None:
+            return tuple(self.deals.get(position, ()))
+        return tuple(d for ds in self.deals.values() for d in ds if int(date_from) <= d.time <= int(date_to))
 
     def history_orders_get(self, position=None):
         self._guard()
@@ -189,25 +192,42 @@ class FakeTerminal:
         self.positions[pid] = SimpleNamespace(ticket=pid, identifier=pid, symbol=symbol, magic=magic,
                                               type=0 if long else 1, volume=volume, price_open=price, sl=sl, tp=tp,
                                               time=fill_msc // 1000, time_msc=fill_msc, profit=0.0, price_current=price)
-        self.deals[pid] = [SimpleNamespace(ticket=pid * 10, entry=0, reason=3, time_msc=fill_msc, price=price,
-                                           volume=volume, profit=0.0, type=0 if long else 1, magic=magic)]
+        self.deals[pid] = [deal(pid, pid * 10, 0, 3, fill_msc, price, volume, 0 if long else 1, magic, symbol)]
         self.orders[pid] = [SimpleNamespace(ticket=pid, type=0 if long else 1, sl=sl, tp=tp)]
 
     def close_position(self, pid, exit_msc, price, reason, volume=None, profit=0.0):
         p = self.positions[pid]
         vol = p.volume if volume is None else volume
-        self.deals[pid].append(SimpleNamespace(ticket=pid * 10 + len(self.deals[pid]), entry=1, reason=reason,
-                                               time_msc=exit_msc, price=price, volume=vol, profit=profit,
-                                               type=1 if p.type == 0 else 0, magic=0 if reason in (0, 1, 2) else MAGIC))
+        self.deals[pid].append(deal(pid, pid * 10 + len(self.deals[pid]), 1, reason, exit_msc, price, vol,
+                                    1 if p.type == 0 else 0, 0 if reason in (0, 1, 2) else p.magic, p.symbol, profit))
         if volume is None or abs(p.volume - volume) < 1e-9:
             del self.positions[pid]
         else:
             p.volume = round(p.volume - volume, 2)
 
 
+def deal(pid, ticket, entry, reason, msc, price, volume, kind, magic, symbol, profit=0.0, comment=""):
+    """A deal with every field a real TradeDeal has (bot SL/TP exits carry the bot magic, manual closes 0)."""
+    return SimpleNamespace(ticket=ticket, order=ticket, time=msc // 1000, time_msc=msc, type=kind, entry=entry,
+                           magic=magic, position_id=pid, reason=reason, volume=volume, price=price, commission=0.0,
+                           swap=0.0, profit=profit, fee=0.0, symbol=symbol, comment=comment, external_id="")
+
+
 def rows_of(path):
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
+
+
+def tick_mscs(path):
+    """Tick rows exactly as written to the file, without the de-duplication load_path applies."""
+    return [r["msc"] for r in rows_of(path) if r["type"] == "tick"]
+
+
+def fake_clock(monkeypatch, start=1000.0):
+    """The recorder loop clock (time.monotonic), advanced by hand."""
+    clock = {"t": start}
+    monkeypatch.setattr(pr, "time", SimpleNamespace(time=time.time, monotonic=lambda: clock["t"]))
+    return clock
 
 
 @pytest.fixture
@@ -233,6 +253,8 @@ def test_recorder_captures_the_path_from_fill_to_exit(market, tmp_path):
     fake.positions[101].sl = 4000.00                            # the bot moved the stop to breakeven
     fake.now_msc = base + 3100
     rec.observe()
+    fake.now_msc = base + 3600                                  # one more pass: the stop is unchanged
+    rec.observe()
     fake.close_position(101, base + 4000, 4004.10, reason=5)    # TP; the +4500 tick is after the exit
     fake.now_msc = base + 6000
     rec.observe()
@@ -240,6 +262,7 @@ def test_recorder_captures_the_path_from_fill_to_exit(market, tmp_path):
     data = load_path(os.path.join(tmp_path, "paths", "XAUUSD_101.jsonl"))
     op, cl, tk = data["open"], data["close"], data["ticks"]
     assert op["side"] == "LONG" and op["fill_msc"] == base and op["fill_price"] == 4000.0
+    assert op["found_via"] == "positions" and cl["found_via"] == "positions" and cl["ticks_after_exit"] == 0
     assert op["sl0"] == 3996.0 and op["tp0"] == 4004.0 and op["stop_dist"] == pytest.approx(4.0)
     assert op["quote_before_fill"] == {"msc": base - 300, "bid": 3999.7, "ask": 4000.0}
     assert [t["msc"] for t in tk] == [base + 500 * i for i in range(1, 9)]     # fill..exit, nothing after
@@ -254,7 +277,9 @@ def test_recorder_captures_the_path_from_fill_to_exit(market, tmp_path):
     by_msc = {t["msc"]: t for t in tk}
     assert by_msc[base + 1500]["sl"] == 3996.0 and not by_msc[base + 1500]["amb"]      # before the bracket
     assert by_msc[base + 3000]["amb"] and by_msc[base + 2000]["amb"]                   # inside (1500, 3000]
-    assert by_msc[base + 3500]["sl"] == 4000.0 and not by_msc[base + 3500]["amb"]      # after the bracket
+    assert by_msc[base + 3500]["sl"] == 4000.0 and not by_msc[base + 3500]["amb"]      # confirmed by the +3600 pass
+    assert by_msc[base + 4000]["amb"]           # after the last snapshot a TP exit carries no stop evidence
+    assert cl["tail_verified"] is False and cl["tail_after_msc"] == base + 3500
     assert cl["exit_msc"] == base + 4000 and cl["exit_price"] == 4004.1 and cl["reason"] == "TP"
     assert cl["final_sl"] == 4000.0 and cl["sl_moved"] is True
     assert cl["n_ticks"] == 8 and cl["path_start_msc"] == base + 500 and cl["path_end_msc"] == base + 4000
@@ -339,8 +364,9 @@ def test_close_writes_suspend_and_a_restart_resumes_without_duplicates(market, t
     assert d["open"]["sl0"] == 3996.0
 
 
-def test_unavailable_tick_data_is_logged_and_never_fabricated(market, tmp_path):
+def test_unavailable_tick_data_is_logged_and_never_fabricated(market, tmp_path, monkeypatch):
     fake, base = market
+    clock = fake_clock(monkeypatch)
     fake.open_position(601, True, base, 4000.00, 3996.00, 4004.00)
     fake.fail_ticks = True
     rec = PathRecorder(str(tmp_path), [MAGIC])
@@ -348,6 +374,8 @@ def test_unavailable_tick_data_is_logged_and_never_fabricated(market, tmp_path):
     rec.observe()
     fake.close_position(601, base + 2500, 3996.00, reason=4)
     fake.now_msc = base + 3100
+    rec.observe()
+    clock["t"] += 120                                            # the tick data never comes back
     rec.observe()
     d = load_path(os.path.join(tmp_path, "paths", "XAUUSD_601.jsonl"))
     assert d["ticks"] == []
@@ -490,3 +518,191 @@ def test_parse_exit_stop_comment():
     assert pr.stop_from_comment("[tp 4350.89]") == ("tp", 4350.89)
     assert pr.stop_from_comment("") is None and pr.stop_from_comment(None) is None
     assert pr.stop_from_comment("AlgoBot-XAUUSD") is None
+
+
+def _stop_exit_after_a_late_trail(market, tmp_path, comment_level):
+    """Long whose stop was last SEEN at 3996; it exits on a stop at +2400 with the broker comment level given."""
+    fake, base = market
+    fake.open_position(991, True, base, 4000.00, 3996.00, 4004.00)
+    rec = PathRecorder(str(tmp_path), [MAGIC])
+    fake.now_msc = base + 1100
+    rec.observe()                                                # last snapshot: anchor +1000, SL 3996
+    fake.close_position(991, base + 2400, comment_level, reason=4)
+    fake.deals[991][-1].comment = f"[sl {comment_level:.2f}]"
+    fake.now_msc = base + 3100
+    rec.observe()
+    return base, load_path(os.path.join(tmp_path, "paths", "XAUUSD_991.jsonl"))
+
+
+def test_tail_is_certain_when_the_exit_stop_equals_the_last_seen_stop(market, tmp_path):
+    base, d = _stop_exit_after_a_late_trail(market, tmp_path, 3996.00)
+    tail = [t for t in d["ticks"] if t["msc"] > base + 1000]
+    assert [t["msc"] for t in tail] == [base + 1500, base + 2000]
+    assert all(t["sl"] == 3996.0 and not t["amb"] for t in tail)             # stops only tighten: no move happened
+    assert d["close"]["tail_verified"] is True and d["close"]["label"] == "SL"
+    assert [e for e in d["events"] if e["type"] == "sl_move"] == []
+
+
+def test_a_stop_move_after_the_last_snapshot_is_recorded_and_its_tail_flagged(market, tmp_path):
+    base, d = _stop_exit_after_a_late_trail(market, tmp_path, 4000.50)
+    tail = [t for t in d["ticks"] if t["msc"] > base + 1000]
+    assert all(t["amb"] and t["sl"] == 3996.0 for t in tail)                 # moved at an unknown moment in the tail
+    moves = [e for e in d["events"] if e["type"] == "sl_move"]
+    assert len(moves) == 1 and (moves[0]["from"], moves[0]["to"]) == (3996.0, 4000.5)
+    assert moves[0]["amb_after_msc"] == base + 1000 and moves[0]["amb_until_msc"] == base + 2400
+    assert d["close"]["tail_verified"] is False and d["close"]["label"] == "TRAIL"
+
+
+# ============================================================================ close timing, a lagging list, discovery
+def test_the_close_waits_for_the_first_quote_after_the_exit(market, tmp_path):
+    fake, base = market
+    fake.open_position(1201, True, base, 4000.00, 3996.00, 4004.00)
+    rec = PathRecorder(str(tmp_path), [MAGIC])
+    fake.now_msc = base + 1100
+    rec.observe()
+    fake.close_position(1201, base + 2200, 3999.00, reason=3)
+    fake.now_msc = base + 2400                                  # no quote has followed the exit yet
+    rec.observe()
+    path = os.path.join(tmp_path, "paths", "XAUUSD_1201.jsonl")
+    assert load_path(path)["close"] is None
+    fake.now_msc = base + 2600                                  # the +2500 quote arrives
+    rec.observe()
+    cl = load_path(path)["close"]
+    assert cl["quote_after_exit"] == {"msc": base + 2500, "bid": 4001.9, "ask": 4002.2}
+    assert tick_mscs(path) == [base + 500, base + 1000, base + 1500, base + 2000]     # nothing written twice
+    assert cl["n_ticks"] == 4 and cl["complete"] is True
+
+
+def test_the_wait_for_a_quote_after_the_exit_is_bounded(market, tmp_path, monkeypatch):
+    fake, base = market
+    clock = fake_clock(monkeypatch)
+    fake.open_position(1202, True, base, 4000.00, 3996.00, 4004.00)
+    rec = PathRecorder(str(tmp_path), [MAGIC])
+    fake.now_msc = base + 4100
+    rec.observe()
+    fake.close_position(1202, base + 4700, 4004.30, reason=3)   # the market closes: no quote follows the exit
+    fake.now_msc = base + 9000
+    rec.observe()
+    path = os.path.join(tmp_path, "paths", "XAUUSD_1202.jsonl")
+    assert load_path(path)["close"] is None
+    clock["t"] += 120
+    rec.observe()
+    cl = load_path(path)["close"]
+    assert cl is not None and cl["quote_after_exit"] is None
+    assert tick_mscs(path) == [base + 500 * i for i in range(1, 10)]
+
+
+def test_a_tick_fetch_that_fails_at_the_close_is_retried(market, tmp_path):
+    fake, base = market
+    fake.open_position(1203, True, base, 4000.00, 3996.00, 4004.00)
+    rec = PathRecorder(str(tmp_path), [MAGIC])
+    fake.now_msc = base + 1100
+    rec.observe()
+    fake.close_position(1203, base + 1700, 4000.50, reason=3)
+    fake.fail_ticks = True
+    fake.now_msc = base + 2600
+    rec.observe()                                                # the tail cannot be fetched on this pass
+    fake.fail_ticks = False
+    fake.now_msc = base + 3100
+    rec.observe()
+    path = os.path.join(tmp_path, "paths", "XAUUSD_1203.jsonl")
+    cl = load_path(path)["close"]
+    assert tick_mscs(path) == [base + 500, base + 1000, base + 1500]
+    assert cl["complete"] is True and cl["unavailable"] == 0
+    assert cl["quote_after_exit"]["msc"] == base + 2000
+
+
+def test_ticks_recorded_past_the_exit_are_cut_from_the_path(market, tmp_path):
+    """The position list can lag the tick feed, so a pass may still list a position after ticks past its exit."""
+    fake, base = market
+    fake.open_position(1204, True, base, 4000.00, 3996.00, 4004.00)
+    rec = PathRecorder(str(tmp_path), [MAGIC])
+    fake.now_msc = base + 1100
+    rec.observe()
+    listed = fake.positions[1204]
+    fake.close_position(1204, base + 1400, 4000.50, reason=3)
+    fake.positions[1204] = listed                                # the terminal has not dropped it yet
+    fake.now_msc = base + 2100
+    rec.observe()                                                # writes +1500 and +2000, both past the exit
+    del fake.positions[1204]
+    fake.now_msc = base + 2600
+    rec.observe()
+    path = os.path.join(tmp_path, "paths", "XAUUSD_1204.jsonl")
+    d = load_path(path)
+    assert [t["msc"] for t in d["ticks"]] == [base + 500, base + 1000]
+    assert [t["msc"] for t in d["after_exit"]] == [base + 1500, base + 2000]
+    cl = d["close"]
+    assert cl["exit_msc"] == base + 1400 and cl["path_end_msc"] == base + 1000 and cl["n_ticks"] == 2
+    assert cl["ticks_after_exit"] == 2 and cl["complete"] is True
+    assert cl["quote_after_exit"] == {"msc": base + 1500, "bid": 4000.5, "ask": 4000.8}
+    assert tick_mscs(path) == [base + 500, base + 1000, base + 1500, base + 2000]     # nothing appended at the close
+
+
+def test_a_position_whose_file_already_holds_a_close_is_never_recorded_again(market, tmp_path, monkeypatch):
+    fake, base = market
+    clock = fake_clock(monkeypatch)
+    fake.open_position(1501, True, base, 4000.00, 3996.00, 4004.00)
+    rec = PathRecorder(str(tmp_path), [MAGIC])
+    fake.now_msc = base + 1100
+    rec.observe()
+    listed = fake.positions.pop(1501)                            # dropped from the list; no exit deal ever syncs
+    fake.now_msc = base + 2100
+    rec.observe()
+    clock["t"] += 120
+    rec.observe()                                                # given up: closed with the exit unknown
+    path = os.path.join(tmp_path, "paths", "XAUUSD_1501.jsonl")
+    assert load_path(path)["close"]["reason"] == "unknown"
+    fake.positions[1501] = listed                                # listed again
+    fake.now_msc = base + 3100
+    rec.observe()
+    PathRecorder(str(tmp_path), [MAGIC]).observe()               # and after a restart
+    types = [r["type"] for r in rows_of(path)]
+    assert types.count("open") == 1 and types[-1] == "close"
+
+
+def test_a_position_opened_and_closed_between_two_passes_is_found_in_deal_history(market, tmp_path):
+    fake, base = market
+    rec = PathRecorder(str(tmp_path), [MAGIC], ["XAUUSD"])
+    fake.now_msc = base + 600
+    rec.observe()                                                # flat
+    fake.open_position(1301, False, base + 1100, 4001.20, 4005.20, 3999.20)
+    fake.close_position(1301, base + 2200, 3999.20, reason=5)    # a short that hit TP before any pass listed it
+    fake.deals[1301][-1].comment = "[tp 3999.20]"
+    fake.all = np.concatenate([fake.all, ticks([(base + 61_000, 4000.20, 4000.50)])])
+    fake.now_msc = base + 61_100                                 # a minute later
+    rec.observe()
+    path = os.path.join(tmp_path, "paths", "XAUUSD_1301.jsonl")
+    assert os.path.exists(path)
+    d = load_path(path)
+    op, cl = d["open"], d["close"]
+    assert op["found_via"] == "deal_history" and op["side"] == "SHORT"
+    assert (op["fill_msc"], op["fill_price"], op["sl0"], op["tp0"]) == (base + 1100, 4001.2, 4005.2, 3999.2)
+    assert op["quote_before_fill"] == {"msc": base + 1000, "bid": 4001.2, "ask": 4001.5}
+    # shorts mark at the ask; no pass saw the stop after the fill, so every tick is ambiguous about it
+    assert [(t["msc"], t["mark"], t["amb"]) for t in d["ticks"]] == [(base + 1500, 4000.8, True),
+                                                                   (base + 2000, 3999.2, True)]
+    assert cl["found_via"] == "deal_history" and cl["label"] == "TP" and cl["exit_msc"] == base + 2200
+    assert cl["tail_verified"] is False and cl["quote_after_exit"]["msc"] == base + 2500
+    index = rows_of(os.path.join(tmp_path, "paths", "index.jsonl"))
+    assert [(r["type"], r["pid"]) for r in index] == [("open", 1301), ("close", 1301)]
+
+
+def test_discovery_leaves_manual_stale_unfinished_and_recorded_positions_alone(market, tmp_path):
+    fake, base = market
+    fake.open_position(1401, True, base, 4000.00, 3996.00, 4004.00)            # listed and recorded as usual
+    rec = PathRecorder(str(tmp_path), [MAGIC], ["XAUUSD"])
+    fake.now_msc = base + 1100
+    rec.observe()
+    fake.close_position(1401, base + 1400, 4000.50, reason=3)
+    fake.open_position(1402, True, base + 1200, 4001.00, 3997.00, 4005.00, magic=0)       # a manual trade
+    fake.close_position(1402, base + 1300, 4001.10, reason=0)
+    fake.open_position(1403, True, base - 1_800_000, 4000.00, 3996.00, 4004.00)  # closed half an hour ago
+    fake.close_position(1403, base - 1_700_000, 4004.00, reason=5)
+    fake.open_position(1404, True, base + 1300, 4001.00, 3997.00, 4005.00)      # filled but not listed yet
+    del fake.positions[1404]
+    fake.all = np.concatenate([fake.all, ticks([(base + 61_000, 4000.20, 4000.50)])])
+    fake.now_msc = base + 61_100
+    rec.observe()
+    assert sorted(os.listdir(os.path.join(tmp_path, "paths"))) == ["XAUUSD_1401.jsonl", "index.jsonl"]
+    types = [r["type"] for r in rows_of(os.path.join(tmp_path, "paths", "XAUUSD_1401.jsonl"))]
+    assert types.count("open") == 1 and types.count("close") == 1

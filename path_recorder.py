@@ -23,7 +23,13 @@ What it records, per position (key: the MT5 position identifier = ticket), into
   suspend/resume the recorder stopped/started while the position was open; on resume the missing
                  stretch is fetched from the terminal's tick history, so the path stays continuous
   close          broker-confirmed exit deal(s), exit reason, final SL, whether the stop ever moved,
-                 path start/end, tick count, gaps, and whether the path is complete
+                 path start/end, tick count, gaps, the first quote after the exit (waited for briefly), and
+                 whether the path is complete. Ticks written before the terminal dropped the position but
+                 stamped after the exit are counted in `ticks_after_exit`; load_path leaves them out of the path.
+
+A position that opens and closes between two passes (or that a crashed run never listed) is found by a
+periodic scan of recent deal history and recorded from the terminal's tick history (found_via=deal_history);
+no pass saw its stop after the fill, so its ticks carry amb=true unless the exit proves the stop never moved.
 
 Quote side: a long is marked at the BID (the price it can be closed at), a short at the ASK.
 R = marked move from the fill / |fill - initial SL|.
@@ -33,17 +39,22 @@ import os
 import re
 import time
 from datetime import datetime
+from types import SimpleNamespace
 
 import numpy as np
 import MetaTrader5 as mt5
 
 from journal import log
 
-SCHEMA = 1
+SCHEMA = 2                 # 2: found_via, ticks_after_exit, waiting for the quote after the exit, discovery
 PATH_DIR = "paths"
 GAP_MS = 30_000            # consecutive recorded ticks further apart than this are flagged as a gap
 EDGE_MS = 10_000           # a complete path starts within this of the fill and ends within this of the exit
 CLOSE_WAIT_S = 60          # how long to wait for the exit deal after a position disappears
+AFTER_EXIT_S = 10          # the first quote after an exit is looked for within this many seconds of it
+EXIT_QUOTE_WAIT_S = 10     # and waited for this long (loop clock) before the close is written without it
+DISCOVER_S = 60            # how often (server clock) recent deal history is scanned for positions no pass listed
+DISCOVER_WINDOW_S = 900    # the scan covers deals this recent
 RECONCILE_DAYS = 7         # on start-up, finalise positions opened this recently that never got a close row
 OUT_ENTRIES = (1, 2, 3)    # DEAL_ENTRY_OUT, DEAL_ENTRY_INOUT, DEAL_ENTRY_OUT_BY
 REASONS = {0: "manual", 1: "manual", 2: "manual", 3: "bot", 4: "SL", 5: "TP", 6: "stopout"}
@@ -207,8 +218,9 @@ def exit_label(code, long: bool, entry: float, sl0, final_sl, tol: float = 1e-6)
 
 
 def load_path(path: str) -> dict:
-    """Read one position file: {open, close, ticks (deduplicated by seq), events (everything else)}."""
-    out = dict(open=None, close=None, ticks=[], events=[])
+    """Read one position file: {open, close, ticks (deduplicated by seq, up to the exit), after_exit (ticks written
+    before the terminal dropped the position but stamped after its exit), events (everything else)}."""
+    out = dict(open=None, close=None, ticks=[], after_exit=[], events=[])
     seen = set()
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -231,6 +243,10 @@ def load_path(path: str) -> dict:
                 out["ticks"].append(row)
             else:
                 out["events"].append(row)
+    exit_msc = (out["close"] or {}).get("exit_msc")
+    if exit_msc is not None:
+        out["after_exit"] = [t for t in out["ticks"] if t["msc"] > exit_msc]
+        out["ticks"] = [t for t in out["ticks"] if t["msc"] <= exit_msc]
     return out
 
 
@@ -247,11 +263,14 @@ class _Pos:
 
 
 class PathRecorder:
-    def __init__(self, log_dir: str, magics):
+    def __init__(self, log_dir: str, magics, symbols=()):
         self.dir = os.path.join(log_dir, PATH_DIR)
         self.magics = {int(m) for m in magics}
+        self.symbols = list(symbols)             # the server clock for the deal-history scan (none: no scan)
         self.tracked: dict = {}
+        self.finished: set = set()               # closed in this run: never recorded again
         self.reconciled = False
+        self.discovered_at = None
         self._warned: set = set()
 
     # -- public ------------------------------------------------------------------------------
@@ -285,10 +304,15 @@ class PathRecorder:
             self._reconcile(ours)
             self.reconciled = True
         for pid, p in ours.items():
+            if pid in self.finished:
+                continue
             try:
                 st = self.tracked.get(pid)
                 if st is None:
                     st = self._start(p)
+                    if st is None:                 # its file already holds a close: never append a second life
+                        self.finished.add(pid)
+                        continue
                     self.tracked[pid] = st
                 st.missing_since = None
                 self._capture(st, p)
@@ -299,13 +323,20 @@ class PathRecorder:
                 self._maybe_finalise(self.tracked[pid])
             except Exception as exc:
                 self._warn(f"path recorder close #{pid}: {type(exc).__name__}: {exc}")
+        try:
+            self._maybe_discover(ours)
+        except Exception as exc:
+            self._warn(f"path recorder discovery: {type(exc).__name__}: {exc}")
 
     # -- lifecycle -------------------------------------------------------------------------
-    def _start(self, p) -> _Pos:
+    def _start(self, p, found_via: str = "positions"):
+        """Open (or resume) a position's file. None when the file already holds its close."""
         pid, symbol = int(p.ticket), p.symbol
         path = self._file(symbol, pid)
         if os.path.exists(path):
-            st = self._load_state(path)
+            st, closed = self._load_state(path)
+            if closed:
+                return None
             if st is not None:
                 row = dict(type="resume", pid=pid, symbol=symbol, last_msc=st.last_tick_msc, reason="recorder_restart",
                            local=_now_iso())
@@ -346,11 +377,12 @@ class PathRecorder:
                   tp0=tp0, stop=abs(entry - sl0) if sl0 > 0 else None, value=value, digits=digits, point=point,
                   path=path, seq=0, last_msc=fill_msc - 1, n_at_last=0, anchor=fill_msc, sl=sl0, tp=tp0, vol=vol0,
                   prev_anchor=None, prev_sl=None, prev_tp=None, prev_vol=None, n=0, first_tick_msc=None,
-                  last_tick_msc=None, max_gap=0, gaps=0, unavailable=0, moves=0, missing_since=None, down=False)
+                  last_tick_msc=None, max_gap=0, gaps=0, unavailable=0, moves=0, missing_since=None, down=False,
+                  found_via=found_via)
         header = dict(type="open", schema=SCHEMA, pid=pid, symbol=symbol, side="LONG" if long else "SHORT",
                       magic=st.magic, volume=vol0, fill_msc=fill_msc, fill_price=entry, fill_source=fill_src,
                       sl0=sl0, tp0=tp0, sl0_source=sl_src, stop_dist=st.stop, usd_per_unit_lot=value,
-                      quote_before_fill=quote, gap_ms=GAP_MS, recorded_local=_now_iso())
+                      quote_before_fill=quote, gap_ms=GAP_MS, found_via=found_via, recorded_local=_now_iso())
         state = dict(type="state", pid=pid, anchor_msc=fill_msc, prev_anchor_msc=None, sl=sl0, tp=tp0, volume=vol0,
                      broker_profit=None, price_current=None, note="at_fill", local=_now_iso())
         self._write(st, [header, state])
@@ -388,29 +420,57 @@ class PathRecorder:
     def _maybe_finalise(self, st: _Pos) -> None:
         deals = mt5.history_deals_get(position=st.pid)
         outs = sorted((d for d in (deals or ()) if int(d.entry) in OUT_ENTRIES), key=lambda d: d.time_msc)
-        if not outs:
-            if st.missing_since is None:
-                st.missing_since = time.monotonic()
-                return
-            if time.monotonic() - st.missing_since < CLOSE_WAIT_S:
-                return
-        self._finalise(st, outs)
+        if st.missing_since is None:
+            st.missing_since = time.monotonic()
+        waited = time.monotonic() - st.missing_since
+        if not outs and waited < CLOSE_WAIT_S:
+            return
+        self._finalise(st, outs, patient=waited < EXIT_QUOTE_WAIT_S)
 
-    def _finalise(self, st: _Pos, outs) -> None:
+    def _finalise(self, st: _Pos, outs, patient: bool = False) -> None:
+        """Write the close. While `patient`, a close whose tail or first quote after the exit has not arrived (or
+        could not be read) is left for the next pass; nothing is written or committed until then."""
         exit_msc = int(outs[-1].time_msc) if outs else None
-        rows, after = ([], None)
-        view = _Pos(**st.__dict__)                       # counters commit only once the close is on disk
-        if exit_msc is not None:
-            rows, after = self._fetch_rows(view, exit_msc,
-                                           tick_anchor=st.anchor if st.anchor is not None else float("inf"))
-        vol_sum = sum(float(d.volume) for d in outs)
         code = int(outs[-1].reason) if outs else None
         tol = 0.5 * st.point if st.point else 1e-6
         fired = stop_from_comment(getattr(outs[-1], "comment", None)) if outs else None
         if fired is not None and fired[0] == "sl" and code == 4:
             final_sl, sl_source = fired[1], "exit_deal_comment"   # the broker's own record of the stop that fired
+            # stops only ever tighten, so an exit stop equal to the last one seen proves it never moved after that
+            tail_verified = st.sl is not None and abs(final_sl - st.sl) <= tol
         else:
-            final_sl, sl_source = st.sl, "last_snapshot"
+            final_sl, sl_source, tail_verified = st.sl, "last_snapshot", False
+        events = []
+        if fired is not None and fired[0] == "sl" and code == 4 and not tail_verified:
+            events.append(dict(type="sl_move", pid=st.pid, **{"from": st.sl, "to": final_sl},
+                               amb_after_msc=st.anchor, amb_until_msc=exit_msc, note="seen_only_in_exit_deal",
+                               local=_now_iso()))
+        # Ticks after the last snapshot have no later snapshot to confirm the stop: unless the exit proves it did not
+        # move, they are ambiguous (the value last seen is reported with amb=true).
+        view = _Pos(**st.__dict__)                       # counters commit only once the close is on disk
+        unverified = object()
+        view.prev_anchor, view.prev_sl, view.prev_tp, view.prev_vol = st.anchor, st.sl, st.tp, st.vol
+        if not tail_verified:
+            view.sl, view.tp = unverified, unverified
+        over = []
+        if exit_msc is not None and st.last_tick_msc is not None and st.last_tick_msc > exit_msc:
+            # the terminal still listed the position after ticks past its exit had arrived: those are already on disk
+            written = load_path(st.path)["ticks"]
+            inside = [t["msc"] for t in written if t["msc"] <= exit_msc]
+            over = [t for t in written if t["msc"] > exit_msc]
+            rows, after = [], (dict(msc=over[0]["msc"], bid=over[0]["bid"], ask=over[0]["ask"]) if over else None)
+            quality = path_quality(st.fill_msc, exit_msc, inside, st.unavailable)
+            path_start, path_end = (inside[0], inside[-1]) if inside else (None, None)
+        else:
+            rows, after = ([], None)
+            if exit_msc is not None:
+                rows, after = self._fetch_rows(view, exit_msc, tick_anchor=float("inf"))
+                if patient and after is None:
+                    return
+            quality = quality_from(st.fill_msc, exit_msc, view.n, view.first_tick_msc, view.last_tick_msc,
+                                   view.max_gap, view.gaps, view.unavailable)
+            path_start, path_end = view.first_tick_msc, view.last_tick_msc
+        vol_sum = sum(float(d.volume) for d in outs)
         close = dict(
             type="close", pid=st.pid, symbol=st.symbol, side="LONG" if st.long else "SHORT",
             exit_msc=exit_msc, exit_price=float(outs[-1].price) if outs else None,
@@ -419,16 +479,17 @@ class PathRecorder:
             label=exit_label(code, st.long, st.entry, st.sl0, final_sl, tol),
             final_sl=final_sl, final_sl_source=sl_source, final_sl_observed=st.sl,
             sl_moved=bool(st.moves) or (st.sl0 is not None and final_sl is not None and abs(final_sl - st.sl0) > tol),
+            tail_after_msc=st.anchor, tail_verified=tail_verified,
             deals=[dict(ticket=int(d.ticket), entry=int(d.entry), reason=int(d.reason), time_msc=int(d.time_msc),
                         price=float(d.price), volume=float(d.volume), profit=float(getattr(d, "profit", 0.0)),
                         comment=str(getattr(d, "comment", "") or ""))
                    for d in outs],
-            path_start_msc=view.first_tick_msc, path_end_msc=view.last_tick_msc,
-            quote_after_exit=after, closed_while_recorder_down=bool(st.down), local=_now_iso(),
-            **quality_from(st.fill_msc, exit_msc, view.n, view.first_tick_msc, view.last_tick_msc, view.max_gap,
-                           view.gaps, view.unavailable))
-        self._write(st, rows + [close])
+            path_start_msc=path_start, path_end_msc=path_end, ticks_after_exit=len(over),
+            quote_after_exit=after, closed_while_recorder_down=bool(st.down), found_via=st.found_via,
+            local=_now_iso(), **quality)
+        self._write(st, events + rows + [close])
         self.tracked.pop(st.pid, None)                   # the file now holds the close: never write it twice
+        self.finished.add(st.pid)
         try:
             self._index(close)
         except OSError as exc:
@@ -459,7 +520,7 @@ class PathRecorder:
         for pid, row in opened.items():
             if pid in closed or pid in ours or pid in self.tracked:
                 continue
-            st = self._load_state(self._file(row["symbol"], pid))
+            st, _ = self._load_state(self._file(row["symbol"], pid))
             if st is None:
                 continue
             st.down = True
@@ -467,11 +528,62 @@ class PathRecorder:
             self.tracked[pid] = st
             self._maybe_finalise(st)
 
+    def _maybe_discover(self, ours: dict) -> None:
+        """Every DISCOVER_S of server time, look through recent deal history for bot positions that no pass ever
+        listed (opened and closed between two passes, or lost to a crash) and record them from tick history."""
+        if not self.symbols:
+            return
+        clock = self._server_clock_msc()
+        if clock is None or (self.discovered_at is not None and clock - self.discovered_at < DISCOVER_S * 1000):
+            return
+        deals = mt5.history_deals_get(clock // 1000 - DISCOVER_WINDOW_S, clock // 1000 + 3600)
+        if deals is None:                          # failed read: scan again on the next pass
+            return
+        self.discovered_at = clock
+        candidates = {}
+        for d in deals:
+            if int(d.magic) in self.magics:
+                candidates.setdefault(int(d.position_id), d.symbol)
+        for pid, symbol in candidates.items():
+            if pid in ours or pid in self.tracked or pid in self.finished or os.path.exists(self._file(symbol, pid)):
+                continue
+            try:
+                self._discover(pid)
+            except Exception as exc:
+                self._warn(f"path recorder discovery #{pid}: {type(exc).__name__}: {exc}")
+
+    def _discover(self, pid: int) -> None:
+        deals = mt5.history_deals_get(position=pid) or ()
+        ins = sorted((d for d in deals if int(d.entry) == 0 and int(d.magic) in self.magics), key=lambda d: d.time_msc)
+        outs = [d for d in deals if int(d.entry) in OUT_ENTRIES]
+        if not ins or sum(float(d.volume) for d in outs) + 1e-9 < sum(float(d.volume) for d in ins):
+            return                                 # not opened by the bot, or still open: a pass will list it
+        first = ins[0]
+        p = SimpleNamespace(ticket=pid, symbol=first.symbol, magic=int(first.magic), type=int(first.type),
+                            volume=float(first.volume), price_open=float(first.price), time_msc=int(first.time_msc),
+                            sl=0.0, tp=0.0)       # sl/tp come from the opening order; 0 means none was set
+        st = self._start(p, found_via="deal_history")
+        if st is None:
+            self.finished.add(pid)
+            return
+        self.tracked[pid] = st
+        self._maybe_finalise(st)
+
+    def _server_clock_msc(self):
+        """The latest tick time over the recorder's symbols: the terminal's own clock, which stops with the market."""
+        latest = None
+        for s in self.symbols:
+            t = mt5.symbol_info_tick(s)
+            msc = int(getattr(t, "time_msc", 0) or 0) if t is not None else 0
+            if msc and (latest is None or msc > latest):
+                latest = msc
+        return latest
+
     # -- ticks ------------------------------------------------------------------------------
     def _fetch_rows(self, st: _Pos, upto_msc, tick_anchor):
         """Tick rows since the last recorded tick (up to `upto_msc` when closing) and the first tick after it."""
         frm = max(0, st.last_msc // 1000)
-        to = int(time.time()) + 86400 if upto_msc is None else upto_msc // 1000 + 10
+        to = int(time.time()) + 86400 if upto_msc is None else upto_msc // 1000 + AFTER_EXIT_S
         raw = mt5.copy_ticks_range(st.symbol, frm, to, mt5.COPY_TICKS_ALL)
         if raw is None:
             st.unavailable += 1
@@ -539,18 +651,21 @@ class PathRecorder:
             f.write(json.dumps(slim, separators=(",", ":")) + "\n")
 
     def _load_state(self, path: str):
-        """Rebuild a position's recorder state from its file (resume / reconcile). None if closed or unreadable."""
+        """Rebuild a position's recorder state from its file (resume / reconcile): (state, closed). The state is None
+        when the file already holds a close or has no readable header."""
         data = load_path(path)
         h = data["open"]
-        if h is None or data["close"] is not None:
-            return None
+        if data["close"] is not None:
+            return None, True
+        if h is None:
+            return None, False
         st = _Pos(pid=int(h["pid"]), symbol=h["symbol"], long=h["side"] == "LONG", magic=int(h["magic"]),
                   fill_msc=int(h["fill_msc"]), entry=float(h["fill_price"]), sl0=h["sl0"], tp0=h["tp0"],
                   stop=h["stop_dist"], value=h["usd_per_unit_lot"], digits=None, point=None, path=path, seq=0,
                   last_msc=int(h["fill_msc"]) - 1, n_at_last=0, anchor=int(h["fill_msc"]), sl=h["sl0"], tp=h["tp0"],
                   vol=float(h["volume"]), prev_anchor=None, prev_sl=None, prev_tp=None, prev_vol=None, n=0,
                   first_tick_msc=None, last_tick_msc=None, max_gap=0, gaps=0, unavailable=0, moves=0,
-                  missing_since=None, down=False)
+                  missing_since=None, down=False, found_via=h.get("found_via", "positions"))
         info = mt5.symbol_info(st.symbol)
         if info is not None:
             st.digits, st.point = int(info.digits), float(info.point)
@@ -576,7 +691,7 @@ class PathRecorder:
                 st.unavailable += 1
             elif kind == "sl_move":
                 st.moves += 1
-        return st
+        return st, False
 
     @staticmethod
     def _rnd(x, digits):

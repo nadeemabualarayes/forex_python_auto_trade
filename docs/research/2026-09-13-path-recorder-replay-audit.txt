@@ -1,0 +1,46 @@
+==============================================================================================================
+PATH RECORDER REPLAY AUDIT - every real scalp-test position   generated 2026-09-13 14:21
+RESEARCH / VALIDATION ONLY - replay terminal built from real data; no bot, no orders, nothing under logs/
+==============================================================================================================
+
+real data: 155 bot positions ({'pre-fix (0.18 lot)': 2, 'strategy exit': 149, 'closed by hand': 4}), 2,043,998 XAUUSD ticks 2026-09-07 13:21:02.616 -> 2026-09-11 22:53:59.993
+journal stop moves aligned to broker time with a +0 s offset (median of ENTRY rows vs fills)
+replay: 29,232 recorder passes at a 2000 ms cadence; injected faults: 16 restarts while open, 14 positions closed while the bot was down; 1234.5 s total; scratch folder C:\Users\SS\AppData\Local\Temp\pathrec_replay_myn9ukkv
+
+CHECKS (every position)
+  file with exactly one open and one close row          : 155/155
+  recorded ticks == every real tick in [fill, exit]     : 155/155   (recorded 277,999 vs real 277,999)
+  no duplicate seq, seq continuous 1..n                 : 155/155
+  quote_before_fill == real tick at/before the fill     : 155/155
+  quote_after_exit  == real first tick after the exit   : 155/155   (within 10 s of it; none there: 0)
+  stop on non-ambiguous ticks == stop truly in force    : 155/155   (wrong ticks: 0; ambiguous ticks: 13,452)
+  exit label == deal reason + journal stop moves        : 155/155
+  exit label == 147-trade report's classification      : 147/147
+  realised R from deals == R from exit price (< 0.01R)  : 155/155   (max diff 0.0000R)
+
+  ALL CHECKS PASS: 155/155
+
+COMPLETENESS
+  complete paths: 154/155
+  incomplete reasons: {'internal_gap': 1}
+    #58401835044 2026-09-10 22:47:01.305 LONG SL: ['internal_gap']
+  close tail verified by the exit stop: 109/155; final stop from the broker exit comment: 115/155
+
+RECORDING ROUTE
+  schema: [2]; found_via: {'positions': 154, 'deal_history': 1}; ticks written past an exit: 0
+    #58343386760 2026-09-08 08:30:02.874 LONG TP: found in deal history, 25 ticks, all-checks PASS
+
+INJECTED FAULTS
+  restart : 16/16 pass all checks; 16/16 show the resume marker
+  down    : 14/14 pass all checks; 14/14 show the closed_while_recorder_down marker
+
+BY EXIT LABEL
+  SL         61 positions,   115,969 ticks, 61 pass
+  TP         36 positions,    59,168 ticks, 36 pass
+  TRAIL      54 positions,    94,219 ticks, 54 pass
+  manual      4 positions,     8,643 ticks, 4 pass
+
+STORAGE: 77.1 MB for 155 positions (median 356 KB, max 2.30 MB)
+
+PROBLEMS
+  none

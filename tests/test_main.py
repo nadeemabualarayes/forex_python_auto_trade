@@ -239,8 +239,8 @@ class _TwoTicks:
 
 def _recorder_spy(calls):
     class _Spy:
-        def __init__(self, log_dir, magics):
-            calls.append(("init", sorted(magics)))
+        def __init__(self, log_dir, magics, symbols=()):
+            calls.append(("init", sorted(magics), list(symbols)))
 
         def observe(self):
             calls.append("observe")
@@ -264,8 +264,17 @@ def test_run_records_paths_after_each_completed_tick_and_closes_on_shutdown(monk
     calls = []
     _quiet_run(monkeypatch, _TwoTicks, calls)
     assert main.run() == 0
-    assert calls[0] == ("init", sorted(e.magic for e in main.build_engines()))
+    assert calls[0][:2] == ("init", sorted(e.magic for e in main.build_engines()))
     assert calls[1:] == ["observe", "observe", "close"]
+
+
+def test_run_gives_the_path_recorder_the_tradable_symbols(monkeypatch):
+    """The recorder reads the server clock from these symbols to scan recent deal history."""
+    calls = []
+    _quiet_run(monkeypatch, _TwoTicks, calls)
+    monkeypatch.setattr(main, "init_mt5", lambda wanted: ["XAUUSD"])       # the terminal offers only gold
+    assert main.run() == 0
+    assert calls[0][2] == ["XAUUSD"]
 
 
 def test_run_closes_the_path_recorder_when_the_first_tick_stops_the_loop(monkeypatch):

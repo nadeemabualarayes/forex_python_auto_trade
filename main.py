@@ -244,7 +244,7 @@ def run() -> int:
         log.warning("pages publishing disabled: no git remote found")
         pages = None
     bot = Bot(symbols, web, pages, engines)
-    paths = PathRecorder(config.LOG_DIR, [e.magic for e in engines])
+    paths = PathRecorder(config.LOG_DIR, [e.magic for e in engines], symbols)
 
     try:
         while True:
