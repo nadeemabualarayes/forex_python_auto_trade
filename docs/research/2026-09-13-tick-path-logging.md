@@ -7,11 +7,15 @@ Date: 2026-09-13 · Branch/worktree: `scalp-test` / `C:\Develompent\forex_scalp_
 * **Schema 1** of the recorder (with its tests, the `run()` hook and the first version of this note) is in commit
   `8c4061d` on `scalp-test`, made at 13:05 under the repository owner's git identity and pushed to
   `origin/scalp-test`. That commit was not made from the Claude session that wrote the code.
-* The scalp-test bot (task `ForexScalpTest`) has been running since 13:19:57, started on request, with the schema-1
-  recorder as it stood at 13:06 (8c4061d plus the close-tail check). The market is closed, so nothing has been
-  recorded yet (`logs/paths/` does not exist).
-* **Schema 2** (this note) is in the working tree: **uncommitted and not running**. It takes effect only when the
-  scalp-test bot is next restarted.
+* **Schema 2** (this note) is in the working tree, uncommitted. With approval, the scalp-test bot (task
+  `ForexScalpTest`) was restarted with it at 16:09:30 (configuration identical to the previous start: scalper, magic
+  998811, XAUUSD, $5.00/trade, cap 60/day). It had run schema 1 from 13:19:57 while the market was closed, recording
+  nothing.
+* At start-up the discovery scan recorded the two positions that closed within 15 minutes of the market's last tick
+  on Friday 11 Sep (`found_via: "deal_history"`), both checked against the terminal: 58424220335 (SL at the initial
+  stop, 5,578 ticks, all equal to the terminal's, stop proven by the exit comment, 0 ambiguous) and 58424404413
+  (TRAIL, 924 ticks, all equal, stop move known only from the exit comment, so all 924 ambiguous about the stop).
+  They predate the recorder; exclude them from forward-collected samples if needed.
 * `main` is untouched.
 
 ## Scope
@@ -348,8 +352,7 @@ the four null `quote_after_exit` values described above; every other check passe
 
 ## Next research step
 
-1. **Restart the scalp-test bot with schema 2 before the Monday open** (your decision; configuration unchanged).
-   Until then the running bot records with schema 1.
+1. **Collect.** Done: the scalp-test bot runs schema 2 since 16:09:30 on 2026-09-13, configuration unchanged.
 2. **Audit the first trading day** before trusting the data: every closed strategy position in the deal history has
    exactly one `close` row; at least 95% are `complete: true`; zero duplicate `seq`; `ticks_after_exit` is 0 or
    explained; the recorded tick count for a sample of positions equals an offline `copy_ticks_range` over the same

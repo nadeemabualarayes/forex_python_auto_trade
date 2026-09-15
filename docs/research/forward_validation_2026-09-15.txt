@@ -1,0 +1,399 @@
+======================================================================================================================
+SCALP-TEST FULL FORWARD-VALIDATION REPORT  -  XAUUSD M1 scalper, magic 998811, demo account 5055596110
+Generated 2026-09-15 08:20 server/local time. Data: 2026-09-07 14:26:39 (sizing fix live) -> 2026-09-15 07:42 (last close)
+READ-ONLY. No strategy, configuration, risk or code change was made for this report.
+======================================================================================================================
+
+VERDICT: CONTINUE FORWARD VALIDATION (no change to the strategy is proposed by this report)
+
+SUMMARY
+ 1. Results. 200 strategy trades since the sizing fix: 118 wins / 82 losses (59.0%), net -$87.43, profit factor 0.72,
+    expectancy -$0.44 per trade (-0.12R), max drawdown $96.40, longest losing streak 3. Every trading day was negative
+    (worst: Thu 09-10 -$33.29, Mon 09-14 -$30.22). The win rate is high but the wins are small: 47 take-profits near
+    +1R and 71 stop exits in profit after the stop trailed, against 82 losing stop exits, nearly all at -1R.
+ 2. Where it loses. The 07-12 server session holds -$68.77 of the -$87.43 (64 trades, PF 0.46, -0.27R). The other
+    sessions are close to flat: 12-17 -$1.25, 17-24 -$1.07, 00-07 -$16.34. Longs -$66.90 (PF 0.67) vs shorts -$20.53
+    (PF 0.81). The HIGH ATR regime is positive (+$10.52, PF 1.44) but on only 19 trades. These are observations for
+    later pre-registered tests, not grounds for a change now.
+ 3. Sizing is correct. At the order price all 200 lots risked at most $5.00. After the fill, 5 trades risked $5.02 to
+    $5.99 because the fill landed beyond the requested price (worst: 09-08 08:30, filled 2.53 higher), and 2 trades
+    that could have taken 0.02 at their fill price took 0.01. 96 signals were skipped because even 0.01 lot would
+    have risked more than $5. No pricing failures, no errors or tracebacks, no breaker pauses.
+ 4. Execution. Fill versus order price: median 0.00, mean +0.012 against the trade; 45 worse, 57 better, 98 exact.
+    Spread at the fill on the 51 tick-recorded trades: median 34 points.
+ 5. Uptime. The bot covered 75.2% of market time; it was silent for 32.5 h, almost all while the PC was asleep or in
+    Modern Standby (plus a manual stop 09-14 09:31-09:38). Most lost hours fall in the evening, so the 17-24 session
+    (37 trades) is under-sampled. Sleep also produced an unclean reboot (09-13 22:23) and a Windows Update restart
+    (09-15 00:37); the scheduled task restarted the bot each time.
+ 6. Tick-path recorder. Live since 09-13 16:09: 51/51 strategy trades recorded, all complete, none missing, no
+    duplicate ticks, 72,183 ticks, 20.0 MB. On these 51 trades, stop-loss exits had a median best excursion of only
+    +0.03R (most losers never moved meaningfully in favour), take-profits a median worst excursion of -0.43R. No
+    exit-rule counterfactual was computed; the pre-registered exit analysis still waits for >= 150 recorded paths.
+ 7. Account. Deposit $3,000.00 -> balance $2,971.45 (-$28.55). This mixes three sources:
+      bot positions        -$176.77  (post-fix strategy -$87.43, 2 pre-fix oversized trades -$96.12,
+                                      4 bot positions closed by hand +$6.78)
+      hand-placed trades   +$148.22  (29 positions with magic 0 on 09-08..09-11, not opened by the bot:
+                                      27 XAUUSD incl. one 0.5-lot trade +$69.00, and 2 GBPUSD)
+    Only the -$87.43 measures the strategy. Manual trading on this account should stay off to keep it clean.
+
+NEEDS YOUR ATTENTION
+ * PC sleep is the largest data problem: a quarter of market time lost, mostly evenings. Setting the power plan to
+   never sleep while plugged in (and scheduling Windows Update restarts outside market hours) would fix it.
+ * Hand-placed trades (magic 0) exist on the test account; they do not affect the strategy statistics above, but
+   they do affect the balance.
+ * When Telegram was unreachable on 09-14 17:01, the error line written to logs/bot.log included the bot token in
+   the request URL. The log is not tracked by git, but do not share that file as-is.
+
+SAMPLE SIZE NOTE
+ 200 trades at about 0.12R expectancy spread is not enough to separate a small real edge from noise in either
+ direction; session and regime splits (19-64 trades each) are weaker still. Treat splits as hypotheses only.
+
+Contents below: (A) forward report - every trade and the standard breakdowns; (B) supplementary sections - account
+reconciliation, by-day table, fill vs order price, uptime, recorder health and tick-accurate excursions.
+
+
+(A) FORWARD REPORT
+FORWARD VALIDATION  XAUUSD  magic 998811  account 5055596110  balance 2971.45  generated 2026-09-15 08:19 (local = server on this host)
+sizing fix live since 2026-09-07 14:26:39 server; risk budget $5.00; profile: M1 rsi 35/65 sl/tp 2.0/2.0 ATR trend=False candles=off manage=True
+ATR regime cut-offs (terciles of 30-day M1 ATR): LOW below 1.647, HIGH from 2.343
+contract 100, tick 0.01, reported tick value 0.1 (terminal-priced: 1)
+
+PER-TRADE (strategy-generated, manual [test] orders excluded)
+server time      side      entry   stop   lot expLot  risk$    net$     Rexit   source             atrregime     penbucket  sess  sizing
+2026-09-07 13:23  LONG    4400.58   2.63  0.18   0.01  47.34  -47.34 -1.00 SL     field (pre-fix)   1.32 LOW       0.24 small   12-17 MISMATCH
+2026-09-07 13:24  LONG    4398.26   2.71  0.18   0.01  48.78  -48.78 -1.00 SL     field (pre-fix)   1.36 LOW       0.85 deep    12-17 MISMATCH
+2026-09-07 14:33  LONG    4385.11   4.79  0.01   0.01   4.79   +1.37 +0.29 SL     terminal          2.42 HIGH      0.25 small   12-17 ok
+2026-09-07 15:26  SHORT   4394.40   2.80  0.01   0.01   2.80   -2.80 -1.00 SL     terminal          1.40 LOW       0.22 small   12-17 ok
+2026-09-07 15:32  SHORT   4396.41   2.88  0.01   0.01   2.88   +2.88 +1.00 TP     terminal          1.44 LOW       0.12 small   12-17 ok
+2026-09-07 16:06  SHORT   4401.69   3.97  0.01   0.01   3.97   -3.97 -1.00 SL     terminal          1.98 NORMAL    0.73 deep    12-17 ok
+2026-09-08 08:25  LONG    4425.03   3.54  0.01   0.01   3.54   -3.54 -1.00 SL     terminal          1.78 NORMAL    0.01 touch   07-12 ok
+2026-09-08 08:28  LONG    4422.31   3.46  0.01   0.01   3.46   -3.46 -1.00 SL     terminal          1.73 NORMAL    0.07 touch   07-12 ok
+2026-09-08 08:30  LONG    4420.64   5.99  0.01   0.00   5.99   +0.93 +0.16 TP     terminal          1.73 NORMAL    0.11 small   07-12 MISMATCH
+2026-09-08 08:55  LONG    4420.04   4.32  0.01   0.01   4.32   -4.32 -1.00 SL     terminal          2.16 NORMAL    0.14 small   07-12 ok
+2026-09-08 09:02  LONG    4415.80   5.02  0.01   0.00   5.02   -5.02 -1.00 SL     terminal          2.43 HIGH      0.23 small   07-12 MISMATCH
+2026-09-08 09:13  LONG    4409.27   4.98  0.01   0.01   4.98   +0.46 +0.09 SL     terminal          2.49 HIGH      0.08 touch   07-12 ok
+2026-09-08 09:20  LONG    4402.30   4.66  0.01   0.01   4.66   +1.03 +0.22 SL     terminal          2.34 NORMAL    0.96 deep    07-12 ok
+2026-09-08 09:44  SHORT   4407.63   4.27  0.01   0.01   4.27   +1.75 +0.41 SL     terminal          2.17 NORMAL    0.02 touch   07-12 ok
+2026-09-08 10:35  LONG    4398.35   4.17  0.01   0.01   4.17   -4.17 -1.00 SL     terminal          2.06 NORMAL    0.67 deep    07-12 ok
+2026-09-08 10:39  LONG    4394.98   4.31  0.01   0.01   4.31   -4.31 -1.00 SL     terminal          2.18 NORMAL    0.53 medium  07-12 ok
+2026-09-08 11:26  SHORT   4396.14   4.22  0.01   0.01   4.22   -0.01 -0.00 manual terminal          2.11 NORMAL    0.23 small   07-12 ok
+2026-09-08 11:49  LONG    4391.63   4.43  0.01   0.01   4.43   +0.76 +0.17 SL     terminal          2.30 NORMAL    0.05 touch   07-12 ok
+2026-09-08 12:06  SHORT   4397.40   3.10  0.01   0.01   3.10   +0.67 +0.22 SL     terminal          1.59 LOW       0.21 small   12-17 ok
+2026-09-08 12:27  LONG    4393.76   3.12  0.01   0.01   3.12   +2.88 +0.92 TP     terminal          1.50 LOW       0.08 touch   12-17 ok
+2026-09-08 12:41  SHORT   4399.15   3.79  0.01   0.01   3.79   -3.79 -1.00 SL     terminal          1.89 NORMAL    0.68 deep    12-17 ok
+2026-09-08 12:42  SHORT   4402.12   4.21  0.01   0.01   4.21   +0.25 +0.06 SL     terminal          2.10 NORMAL    1.11 deep    12-17 ok
+2026-09-08 13:05  LONG    4398.79   2.72  0.01   0.01   2.72   -2.72 -1.00 SL     terminal          1.36 LOW       0.50 medium  12-17 ok
+2026-09-08 13:21  SHORT   4405.22   3.83  0.01   0.01   3.83   +0.40 +0.10 SL     terminal          1.98 NORMAL    1.22 deep    12-17 ok
+2026-09-08 13:22  SHORT   4403.54   4.46  0.01   0.01   4.46   +4.00 +0.90 TP     terminal          2.11 NORMAL    0.23 small   12-17 ok
+2026-09-08 14:09  LONG    4394.14   3.44  0.01   0.01   3.44   +3.16 +0.92 TP     terminal          1.65 NORMAL    0.02 touch   12-17 ok
+2026-09-08 14:13  LONG    4391.63   4.03  0.01   0.01   4.03   +4.03 +1.00 TP     terminal          2.01 NORMAL    0.27 small   12-17 ok
+2026-09-08 14:36  SHORT   4405.16   2.60  0.01   0.01   2.60   -2.60 -1.00 SL     terminal          1.30 LOW       0.09 touch   12-17 ok
+2026-09-08 14:37  SHORT   4407.70   2.79  0.01   0.01   2.79   +1.15 +0.41 SL     terminal          1.39 LOW       0.35 medium  12-17 ok
+2026-09-08 15:13  LONG    4393.98   4.61  0.01   0.01   4.61   -4.61 -1.00 SL     terminal          2.31 NORMAL    1.37 deep    12-17 ok
+2026-09-08 15:15  LONG    4389.02   4.61  0.01   0.01   4.61   +4.89 +1.06 TP     terminal          2.37 HIGH      0.62 deep    12-17 ok
+2026-09-08 19:00  LONG    4395.07   3.64  0.01   0.01   3.64   -3.64 -1.00 SL     terminal          1.84 NORMAL    0.37 medium  17-24 ok
+2026-09-08 19:02  LONG    4391.89   3.68  0.01   0.01   3.68   +1.12 +0.30 SL     terminal          1.84 NORMAL    0.54 medium  17-24 ok
+2026-09-08 19:10  LONG    4382.64   5.03  0.01   0.00   5.03   +0.24 +0.05 SL     terminal          2.37 HIGH      2.13 deep    17-24 MISMATCH
+2026-09-08 20:06  SHORT   4401.04   4.57  0.01   0.01   4.57   +4.65 +1.02 TP     terminal          2.31 NORMAL    0.07 touch   17-24 ok
+2026-09-08 20:41  LONG    4387.39   3.30  0.01   0.01   3.30   +0.50 +0.15 SL     terminal          1.66 NORMAL    0.77 deep    17-24 ok
+2026-09-08 21:10  LONG    4384.80   2.88  0.01   0.01   2.88   +0.55 +0.19 SL     terminal          1.45 LOW       0.28 small   17-24 ok
+2026-09-08 21:31  LONG    4383.37   2.81  0.01   0.01   2.81   +0.06 +0.02 SL     terminal          1.40 LOW       0.30 medium  17-24 ok
+2026-09-08 22:34  LONG    4362.04   4.32  0.01   0.01   4.32   +4.28 +0.99 TP     terminal          2.15 NORMAL    1.01 deep    17-24 ok
+2026-09-09 07:00  LONG    4375.39   2.04  0.02   0.02   4.08   -4.08 -1.00 SL     terminal          1.02 LOW       0.56 medium  07-12 ok
+2026-09-09 07:07  LONG    4372.53   2.03  0.02   0.02   4.06   +1.24 +0.31 SL     terminal          1.04 LOW       0.81 deep    07-12 ok
+2026-09-09 07:24  SHORT   4376.24   2.55  0.01   0.01   2.55   -2.55 -1.00 SL     terminal          1.27 LOW       0.46 medium  07-12 ok
+2026-09-09 08:37  SHORT   4389.87   4.17  0.01   0.01   4.17   -4.17 -1.00 SL     terminal          2.09 NORMAL    0.10 touch   07-12 ok
+2026-09-09 09:04  SHORT   4402.45   3.91  0.01   0.01   3.91   +1.42 +0.36 SL     terminal          1.88 NORMAL    0.10 small   07-12 ok
+2026-09-09 09:29  LONG    4395.55   3.70  0.01   0.01   3.70   +3.70 +1.00 TP     terminal          1.85 NORMAL    0.42 medium  07-12 ok
+2026-09-09 09:39  SHORT   4405.44   4.05  0.01   0.01   4.05   +3.87 +0.96 TP     terminal          1.98 NORMAL    0.18 small   07-12 ok
+2026-09-09 10:06  SHORT   4403.39   2.55  0.01   0.01   2.55   -2.55 -1.00 SL     terminal          1.34 LOW       0.61 deep    07-12 ok
+2026-09-09 10:13  SHORT   4405.70   3.09  0.01   0.01   3.09   +0.58 +0.19 SL     terminal          1.49 LOW       0.26 small   07-12 ok
+2026-09-09 10:40  SHORT   4409.93   2.66  0.01   0.01   2.66   -2.66 -1.00 SL     terminal          1.33 LOW       0.27 small   07-12 ok
+2026-09-09 11:11  LONG    4405.41   3.14  0.01   0.01   3.14   -3.14 -1.00 SL     terminal          1.70 NORMAL    0.54 medium  07-12 ok
+2026-09-09 12:47  LONG    4394.72   2.45  0.02   0.02   4.90   -4.90 -1.00 SL     terminal          1.21 LOW       0.35 medium  12-17 ok
+2026-09-09 12:51  LONG    4392.59   2.73  0.01   0.01   2.73   +0.02 +0.01 SL     terminal          1.37 LOW       0.17 small   12-17 ok
+2026-09-09 12:55  LONG    4391.24   2.87  0.01   0.01   2.87   -2.87 -1.00 SL     terminal          1.46 LOW       0.13 small   12-17 ok
+2026-09-09 13:02  LONG    4386.85   3.38  0.01   0.01   3.38   +3.46 +1.02 TP     terminal          1.71 NORMAL    0.26 small   12-17 ok
+2026-09-09 13:21  SHORT   4395.34   3.07  0.01   0.01   3.07   +0.67 +0.22 SL     terminal          1.54 LOW       0.03 touch   12-17 ok
+2026-09-09 13:38  SHORT   4398.52   2.58  0.01   0.01   2.58   +2.34 +0.91 manual terminal          1.29 LOW       0.18 small   12-17 ok
+2026-09-09 13:56  SHORT   4402.84   3.13  0.01   0.01   3.13   +2.95 +0.94 TP     terminal          1.52 LOW       0.04 touch   12-17 ok
+2026-09-09 14:27  SHORT   4407.66   2.70  0.01   0.01   2.70   +0.30 +0.11 SL     terminal          1.35 LOW       0.76 deep    12-17 ok
+2026-09-09 14:50  SHORT   4413.22   4.28  0.01   0.01   4.28   +3.42 +0.80 TP     terminal          1.92 NORMAL    1.96 deep    12-17 ok
+2026-09-09 14:51  SHORT   4409.33   3.93  0.01   0.01   3.93   +0.66 +0.17 SL     terminal          2.00 NORMAL    0.75 deep    12-17 ok
+2026-09-09 17:56  LONG    4417.77   5.65  0.01   0.00   5.65   +4.15 +0.73 TP     terminal          2.45 HIGH      0.12 small   17-24 MISMATCH
+2026-09-09 19:19  LONG    4392.26   4.97  0.01   0.01   4.97   +4.89 +0.98 TP     terminal          2.47 HIGH      0.02 touch   17-24 ok
+2026-09-09 19:45  SHORT   4407.61   4.08  0.01   0.01   4.08   +0.03 +0.01 SL     terminal          2.04 NORMAL    0.21 small   17-24 ok
+2026-09-09 20:01  SHORT   4410.44   3.38  0.01   0.01   3.38   -3.38 -1.00 SL     terminal          1.68 NORMAL    0.07 touch   17-24 ok
+2026-09-09 20:07  SHORT   4417.77   3.07  0.01   0.01   3.07   -3.07 -1.00 SL     terminal          1.82 NORMAL    1.01 deep    17-24 ok
+2026-09-09 20:32  LONG    4413.67   3.74  0.01   0.01   3.74   +1.82 +0.49 SL     terminal          1.87 NORMAL    0.13 small   17-24 ok
+2026-09-09 21:01  SHORT   4417.97   2.34  0.02   0.02   4.68   +1.94 +0.41 manual terminal          1.17 LOW       0.17 small   17-24 ok
+2026-09-09 21:14  SHORT   4420.79   3.54  0.01   0.01   3.54   +0.85 +0.24 SL     terminal          1.75 NORMAL    0.13 small   17-24 ok
+2026-09-09 21:32  LONG    4415.15   2.45  0.02   0.02   4.90   +0.62 +0.13 SL     terminal          1.22 LOW       0.41 medium  17-24 ok
+2026-09-09 21:42  LONG    4412.40   3.37  0.01   0.01   3.37   -3.37 -1.00 SL     terminal          1.69 NORMAL    0.27 small   17-24 ok
+2026-09-09 22:02  LONG    4399.91   3.59  0.01   0.01   3.59   +2.51 +0.70 manual terminal          1.80 NORMAL    0.26 small   17-24 ok
+2026-09-10 01:02  SHORT   4404.81   3.67  0.01   0.01   3.67   +0.48 +0.13 SL     terminal          1.86 NORMAL    0.82 deep    00-07 ok
+2026-09-10 01:49  LONG    4399.49   2.57  0.01   0.01   2.57   +0.17 +0.07 SL     terminal          1.25 LOW       0.41 medium  00-07 ok
+2026-09-10 02:33  LONG    4395.10   3.54  0.01   0.01   3.54   -3.54 -1.00 SL     terminal          1.77 NORMAL    0.17 small   00-07 ok
+2026-09-10 03:01  LONG    4392.03   2.07  0.02   0.02   4.14   -4.14 -1.00 SL     terminal          1.04 LOW       0.64 deep    00-07 ok
+2026-09-10 03:02  LONG    4390.18   2.15  0.02   0.02   4.30   +1.16 +0.27 SL     terminal          1.07 LOW       0.96 deep    00-07 ok
+2026-09-10 03:30  LONG    4393.07   3.28  0.01   0.01   3.28   +0.05 +0.02 SL     terminal          1.64 LOW       0.34 medium  00-07 ok
+2026-09-10 03:41  SHORT   4399.30   3.78  0.01   0.01   3.78   +0.72 +0.19 SL     terminal          1.89 NORMAL    0.13 small   00-07 ok
+2026-09-10 03:54  SHORT   4404.31   3.66  0.01   0.01   3.66   +1.42 +0.39 SL     terminal          1.86 NORMAL    0.33 medium  00-07 ok
+2026-09-10 04:01  SHORT   4407.82   4.44  0.01   0.01   4.44   -4.44 -1.00 SL     terminal          2.23 NORMAL    0.73 deep    00-07 ok
+2026-09-10 04:47  SHORT   4412.89   4.16  0.01   0.01   4.16   +4.16 +1.00 TP     terminal          2.08 NORMAL    0.16 small   00-07 ok
+2026-09-10 05:06  SHORT   4418.17   5.05  0.01   0.00   5.05   +4.91 +0.97 TP     terminal          2.49 HIGH      0.26 small   00-07 MISMATCH
+2026-09-10 06:06  LONG    4416.26   3.39  0.01   0.01   3.39   -3.39 -1.00 SL     terminal          1.69 NORMAL    0.00 touch   00-07 ok
+2026-09-10 06:08  LONG    4413.19   3.42  0.01   0.01   3.42   +3.42 +1.00 TP     terminal          1.71 NORMAL    0.27 small   00-07 ok
+2026-09-10 06:27  LONG    4410.50   2.85  0.01   0.01   2.85   +0.51 +0.18 SL     terminal          1.43 LOW       0.18 small   00-07 ok
+2026-09-10 06:42  LONG    4407.77   2.53  0.01   0.01   2.53   +0.53 +0.21 SL     terminal          1.27 LOW       0.14 small   00-07 ok
+2026-09-10 07:05  SHORT   4412.63   2.20  0.02   0.02   4.40   -4.40 -1.00 SL     terminal          1.10 LOW       1.20 deep    07-12 ok
+2026-09-10 07:30  LONG    4412.43   2.26  0.02   0.02   4.52   -4.52 -1.00 SL     terminal          1.13 LOW       0.69 deep    07-12 ok
+2026-09-10 07:39  LONG    4408.57   2.50  0.02   0.02   5.00   -5.00 -1.00 SL     terminal          1.25 LOW       0.39 medium  07-12 ok
+2026-09-10 07:41  LONG    4406.35   2.64  0.01   0.01   2.64   +2.64 +1.00 TP     terminal          1.32 LOW       0.39 medium  07-12 ok
+2026-09-10 08:08  SHORT   4412.64   2.91  0.01   0.01   2.91   -2.91 -1.00 SL     terminal          1.46 LOW       0.60 deep    07-12 ok
+2026-09-10 08:10  SHORT   4414.54   2.96  0.01   0.01   2.96   -2.96 -1.00 SL     terminal          1.53 LOW       0.38 medium  07-12 ok
+2026-09-10 08:14  SHORT   4418.08   3.64  0.01   0.01   3.64   -3.64 -1.00 SL     terminal          1.81 NORMAL    0.02 touch   07-12 ok
+2026-09-10 08:33  SHORT   4426.46   4.06  0.01   0.01   4.06   +4.06 +1.00 TP     terminal          2.03 NORMAL    1.58 deep    07-12 ok
+2026-09-10 09:13  LONG    4419.09   4.86  0.01   0.01   4.86   -4.86 -1.00 SL     terminal          2.43 HIGH      0.33 medium  07-12 ok
+2026-09-10 09:15  LONG    4414.39   4.21  0.01   0.01   4.21   +4.21 +1.00 TP     terminal          2.11 NORMAL    0.19 small   07-12 ok
+2026-09-10 09:41  SHORT   4420.99   3.89  0.01   0.01   3.89   -3.89 -1.00 SL     terminal          1.94 NORMAL    0.45 medium  07-12 ok
+2026-09-10 09:42  SHORT   4424.60   3.83  0.01   0.01   3.83   -3.83 -1.00 SL     terminal          1.91 NORMAL    0.44 medium  07-12 ok
+2026-09-10 09:46  SHORT   4428.38   3.89  0.01   0.01   3.89   +3.89 +1.00 TP     terminal          1.95 NORMAL    0.12 small   07-12 ok
+2026-09-10 10:02  LONG    4419.57   3.69  0.01   0.01   3.69   -3.69 -1.00 SL     terminal          1.85 NORMAL    1.14 deep    07-12 ok
+2026-09-10 10:03  LONG    4416.42   4.06  0.01   0.01   4.06   -4.06 -1.00 SL     terminal          2.04 NORMAL    1.24 deep    07-12 ok
+2026-09-10 10:26  LONG    4410.29   3.60  0.01   0.01   3.60   -3.60 -1.00 SL     terminal          1.80 NORMAL    0.02 touch   07-12 ok
+2026-09-10 10:35  LONG    4405.09   3.84  0.01   0.01   3.84   +0.37 +0.10 SL     terminal          2.05 NORMAL    0.38 medium  07-12 ok
+2026-09-10 10:48  SHORT   4412.16   3.88  0.01   0.01   3.88   +3.88 +1.00 TP     terminal          1.94 NORMAL    0.21 small   07-12 ok
+2026-09-10 11:05  LONG    4408.02   3.38  0.01   0.01   3.38   +0.14 +0.04 SL     terminal          1.69 NORMAL    0.16 small   07-12 ok
+2026-09-10 11:32  LONG    4403.18   3.12  0.01   0.01   3.12   -3.12 -1.00 SL     terminal          1.56 LOW       0.62 deep    07-12 ok
+2026-09-10 11:34  LONG    4400.45   3.28  0.01   0.01   3.28   -3.28 -1.00 SL     terminal          1.62 LOW       0.73 deep    07-12 ok
+2026-09-10 12:32  LONG    4391.21   3.24  0.01   0.01   3.24   +2.88 +0.89 TP     terminal          1.53 LOW       0.39 medium  12-17 ok
+2026-09-10 13:04  SHORT   4398.04   2.72  0.01   0.01   2.72   +2.72 +1.00 TP     terminal          1.36 LOW       0.71 deep    12-17 ok
+2026-09-10 13:32  LONG    4390.16   3.70  0.01   0.01   3.70   -3.70 -1.00 SL     terminal          1.81 NORMAL    0.73 deep    12-17 ok
+2026-09-10 13:33  LONG    4386.28   3.46  0.01   0.01   3.46   -3.46 -1.00 SL     terminal          1.87 NORMAL    0.85 deep    12-17 ok
+2026-09-10 13:35  LONG    4382.57   4.08  0.01   0.01   4.08   -4.08 -1.00 SL     terminal          2.04 NORMAL    0.66 deep    12-17 ok
+2026-09-10 13:37  LONG    4378.22   4.69  0.01   0.01   4.69   +4.69 +1.00 TP     terminal          2.35 HIGH      0.70 deep    12-17 ok
+2026-09-10 14:48  LONG    4381.55   3.66  0.01   0.01   3.66   -3.66 -1.00 SL     terminal          1.85 NORMAL    0.51 medium  12-17 ok
+2026-09-10 14:52  LONG    4377.00   4.12  0.01   0.01   4.12   +1.49 +0.36 SL     terminal          2.08 NORMAL    0.69 deep    12-17 ok
+2026-09-10 19:09  LONG    4360.69   4.89  0.01   0.01   4.89   -4.89 -1.00 SL     terminal          2.46 HIGH      0.86 deep    17-24 ok
+2026-09-10 20:41  LONG    4355.73   4.52  0.01   0.01   4.52   +2.33 +0.52 SL     terminal          2.27 NORMAL    1.15 deep    17-24 ok
+2026-09-10 20:58  LONG    4351.89   4.05  0.01   0.01   4.05   +3.57 +0.88 TP     terminal          1.91 NORMAL    0.89 deep    17-24 ok
+2026-09-10 22:25  SHORT   4329.18   4.54  0.01   0.01   4.54   +1.37 +0.30 SL     terminal          2.27 NORMAL    1.08 deep    17-24 ok
+2026-09-10 22:47  LONG    4323.08   4.13  0.01   0.01   4.13   -4.26 -1.03 SL     terminal          2.03 NORMAL    0.00 touch   17-24 ok
+2026-09-11 01:32  LONG    4316.96   2.79  0.01   0.01   2.79   +0.20 +0.07 SL     terminal          1.36 LOW       0.90 deep    00-07 ok
+2026-09-11 02:55  LONG    4312.70   3.26  0.01   0.01   3.26   +3.26 +1.00 TP     terminal          1.63 LOW       0.11 small   00-07 ok
+2026-09-11 03:01  SHORT   4319.09   3.60  0.01   0.01   3.60   -3.60 -1.00 SL     terminal          2.08 NORMAL    0.42 medium  00-07 ok
+2026-09-11 03:46  SHORT   4329.50   4.72  0.01   0.01   4.72   -4.72 -1.00 SL     terminal          2.37 HIGH      0.73 deep    00-07 ok
+2026-09-11 04:04  SHORT   4339.11   4.78  0.01   0.01   4.78   +5.04 +1.05 TP     terminal          2.46 HIGH      0.90 deep    00-07 ok
+2026-09-11 05:32  LONG    4318.29   4.47  0.01   0.01   4.47   +0.07 +0.02 SL     terminal          2.23 NORMAL    0.97 deep    00-07 ok
+2026-09-11 06:08  LONG    4316.00   4.55  0.01   0.01   4.55   +1.13 +0.25 SL     terminal          2.29 NORMAL    1.15 deep    00-07 ok
+2026-09-11 06:43  SHORT   4312.12   4.49  0.01   0.01   4.49   +4.65 +1.04 TP     terminal          2.29 NORMAL    0.50 medium  00-07 ok
+2026-09-11 07:05  SHORT   4308.83   4.82  0.01   0.01   4.82   -4.82 -1.00 SL     terminal          2.34 NORMAL    0.68 deep    07-12 ok
+2026-09-11 07:07  SHORT   4313.48   4.58  0.01   0.01   4.58   -4.58 -1.00 SL     terminal          2.28 NORMAL    0.59 medium  07-12 ok
+2026-09-11 07:08  SHORT   4317.69   4.69  0.01   0.01   4.69   -4.69 -1.00 SL     terminal          2.35 HIGH      0.84 deep    07-12 ok
+2026-09-11 07:10  SHORT   4321.99   4.78  0.01   0.01   4.78   +0.19 +0.04 SL     terminal          2.39 HIGH      0.63 deep    07-12 ok
+2026-09-11 08:15  SHORT   4337.94   4.96  0.01   0.01   4.96   +0.27 +0.05 SL     terminal          2.48 HIGH      0.07 touch   07-12 ok
+2026-09-11 10:27  LONG    4347.91   4.03  0.01   0.01   4.03   -4.03 -1.00 SL     terminal          2.01 NORMAL    0.02 touch   07-12 ok
+2026-09-11 10:52  LONG    4340.99   2.92  0.01   0.01   2.92   +2.92 +1.00 TP     terminal          1.46 LOW       0.39 medium  07-12 ok
+2026-09-11 11:56  LONG    4348.31   4.00  0.01   0.01   4.00   +4.00 +1.00 TP     terminal          2.00 NORMAL    0.37 medium  07-12 ok
+2026-09-11 12:59  SHORT   4347.30   2.44  0.01   0.02   2.44   +2.62 +1.07 TP     terminal          1.27 LOW       0.98 deep    12-17 MISMATCH
+2026-09-11 13:02  SHORT   4342.81   2.52  0.01   0.01   2.52   -2.52 -1.00 SL     terminal          1.43 LOW       0.78 deep    12-17 ok
+2026-09-11 13:03  SHORT   4347.66   3.67  0.01   0.01   3.67   +3.73 +1.02 TP     terminal          1.85 NORMAL    0.09 touch   12-17 ok
+2026-09-11 13:57  LONG    4338.70   3.00  0.01   0.01   3.00   +0.21 +0.07 SL     terminal          1.50 LOW       0.23 small   12-17 ok
+2026-09-11 14:34  LONG    4333.37   4.28  0.01   0.01   4.28   +0.23 +0.05 SL     terminal          2.06 NORMAL    0.31 medium  12-17 ok
+2026-09-11 15:05  LONG    4329.64   3.62  0.01   0.01   3.62   +0.64 +0.18 SL     terminal          1.86 NORMAL    0.15 small   12-17 ok
+2026-09-11 18:58  LONG    4366.53   4.59  0.01   0.01   4.59   +1.68 +0.37 SL     terminal          2.36 HIGH      0.25 small   17-24 ok
+2026-09-11 19:15  LONG    4361.45   4.23  0.01   0.01   4.23   +0.30 +0.07 SL     terminal          2.12 NORMAL    0.72 deep    17-24 ok
+2026-09-11 20:13  SHORT   4365.12   4.27  0.01   0.01   4.27   -4.27 -1.00 SL     terminal          2.13 NORMAL    0.15 small   17-24 ok
+2026-09-11 20:20  SHORT   4369.05   4.57  0.01   0.01   4.57   +0.81 +0.18 SL     terminal          2.29 NORMAL    0.11 small   17-24 ok
+2026-09-11 20:25  SHORT   4369.09   4.21  0.01   0.01   4.21   +1.41 +0.33 SL     terminal          2.11 NORMAL    0.04 touch   17-24 ok
+2026-09-11 20:39  LONG    4363.62   3.81  0.01   0.01   3.81   -3.81 -1.00 SL     terminal          1.91 NORMAL    0.58 medium  17-24 ok
+2026-09-11 20:59  LONG    4358.18   2.95  0.01   0.01   2.95   +0.41 +0.14 SL     terminal          1.48 LOW       0.25 small   17-24 ok
+2026-09-11 21:10  LONG    4354.00   3.10  0.01   0.01   3.10   +0.23 +0.07 SL     terminal          1.55 LOW       0.20 small   17-24 ok
+2026-09-11 21:14  LONG    4350.06   3.70  0.01   0.01   3.70   -3.70 -1.00 SL     terminal          1.85 NORMAL    0.72 deep    17-24 ok
+2026-09-11 21:15  LONG    4346.88   4.01  0.01   0.01   4.01   +4.01 +1.00 TP     terminal          2.00 NORMAL    1.35 deep    17-24 ok
+2026-09-11 22:16  SHORT   4352.13   3.77  0.01   0.01   3.77   +0.70 +0.19 SL     terminal          1.89 NORMAL    0.02 touch   17-24 ok
+2026-09-11 22:31  LONG    4347.34   3.66  0.01   0.01   3.66   -3.66 -1.00 SL     terminal          1.83 NORMAL    0.25 small   17-24 ok
+2026-09-11 22:49  LONG    4343.88   2.90  0.01   0.01   2.90   +0.31 +0.11 SL     terminal          1.44 LOW       0.15 small   17-24 ok
+2026-09-14 01:55  SHORT   4339.34   2.65  0.01   0.01   2.65   +0.18 +0.07 SL     terminal          1.32 LOW       0.88 deep    00-07 ok
+2026-09-14 02:01  SHORT   4341.63   2.61  0.01   0.01   2.61   -2.61 -1.00 SL     terminal          1.35 LOW       0.85 deep    00-07 ok
+2026-09-14 02:19  LONG    4337.99   2.21  0.02   0.02   4.42   -4.42 -1.00 SL     terminal          1.11 LOW       0.41 medium  00-07 ok
+2026-09-14 02:21  LONG    4336.15   2.03  0.02   0.02   4.06   +4.06 +1.00 TP     terminal          1.02 LOW       0.62 deep    00-07 ok
+2026-09-14 02:49  LONG    4335.71   3.28  0.01   0.01   3.28   -3.28 -1.00 SL     terminal          1.64 LOW       0.29 small   00-07 ok
+2026-09-14 02:50  LONG    4332.71   3.52  0.01   0.01   3.52   +0.70 +0.20 SL     terminal          1.76 NORMAL    1.14 deep    00-07 ok
+2026-09-14 05:40  LONG    4347.87   4.13  0.01   0.01   4.13   -4.13 -1.00 SL     terminal          2.09 NORMAL    0.27 small   00-07 ok
+2026-09-14 05:42  LONG    4343.79   4.28  0.01   0.01   4.28   +1.37 +0.32 SL     terminal          2.21 NORMAL    0.46 medium  00-07 ok
+2026-09-14 05:55  LONG    4338.44   4.19  0.01   0.01   4.19   -4.19 -1.00 SL     terminal          2.14 NORMAL    0.06 touch   00-07 ok
+2026-09-14 05:57  LONG    4334.95   4.49  0.01   0.01   4.49   -4.49 -1.00 SL     terminal          2.25 NORMAL    0.14 small   00-07 ok
+2026-09-14 05:59  LONG    4331.47   4.44  0.01   0.01   4.44   +4.34 +0.98 TP     terminal          2.19 NORMAL    0.43 medium  00-07 ok
+2026-09-14 06:34  LONG    4331.27   2.77  0.01   0.01   2.77   -2.77 -1.00 SL     terminal          1.38 LOW       0.43 medium  00-07 ok
+2026-09-14 06:36  LONG    4329.47   2.96  0.01   0.01   2.96   +2.60 +0.88 TP     terminal          1.39 LOW       0.50 medium  00-07 ok
+2026-09-14 06:42  LONG    4327.77   3.44  0.01   0.01   3.44   +1.02 +0.30 SL     terminal          1.72 NORMAL    0.11 small   00-07 ok
+2026-09-14 07:39  LONG    4325.73   2.91  0.01   0.01   2.91   -2.91 -1.00 SL     terminal          1.45 LOW       0.90 deep    07-12 ok
+2026-09-14 07:56  SHORT   4330.68   3.53  0.01   0.01   3.53   +1.50 +0.42 SL     terminal          1.77 NORMAL    0.69 deep    07-12 ok
+2026-09-14 08:33  SHORT   4334.73   3.83  0.01   0.01   3.83   +3.83 +1.00 TP     terminal          1.91 NORMAL    0.51 medium  07-12 ok
+2026-09-14 09:13  LONG    4329.02   4.89  0.01   0.01   4.89   +0.06 +0.01 SL     terminal          2.45 HIGH      0.12 small   07-12 ok
+2026-09-14 09:43  LONG    4326.42   3.35  0.01   0.01   3.35   +1.28 +0.38 SL     terminal          1.67 NORMAL    0.10 small   07-12 ok
+2026-09-14 09:50  LONG    4324.07   4.22  0.01   0.01   4.22   -4.22 -1.00 SL     terminal          2.10 NORMAL    0.30 medium  07-12 ok
+2026-09-14 10:30  LONG    4316.96   4.14  0.01   0.01   4.14   +0.13 +0.03 SL     terminal          2.07 NORMAL    0.37 medium  07-12 ok
+2026-09-14 10:52  LONG    4312.16   4.70  0.01   0.01   4.70   +1.86 +0.40 SL     terminal          2.41 HIGH      0.96 deep    07-12 ok
+2026-09-14 11:51  LONG    4308.26   4.28  0.01   0.01   4.28   -4.28 -1.00 SL     terminal          2.15 NORMAL    0.05 touch   07-12 ok
+2026-09-14 12:17  LONG    4302.67   3.91  0.01   0.01   3.91   -3.91 -1.00 SL     terminal          1.95 NORMAL    0.16 small   12-17 ok
+2026-09-14 12:18  LONG    4299.05   4.01  0.01   0.01   4.01   -4.01 -1.00 SL     terminal          1.94 NORMAL    0.40 medium  12-17 ok
+2026-09-14 12:19  LONG    4288.48   4.32  0.01   0.01   4.32   +3.88 +0.90 TP     terminal          2.05 NORMAL    1.21 deep    12-17 ok
+2026-09-14 13:27  SHORT   4292.12   4.34  0.01   0.01   4.34   +0.60 +0.14 SL     terminal          2.06 NORMAL    0.22 small   12-17 ok
+2026-09-14 14:37  LONG    4293.76   2.04  0.02   0.02   4.08   -4.08 -1.00 SL     terminal          1.02 LOW       0.22 small   12-17 ok
+2026-09-14 14:53  LONG    4288.43   3.20  0.01   0.01   3.20   -3.20 -1.00 SL     terminal          1.60 LOW       0.90 deep    12-17 ok
+2026-09-14 14:56  LONG    4285.54   3.25  0.01   0.01   3.25   +3.31 +1.02 TP     terminal          1.64 LOW       0.32 medium  12-17 ok
+2026-09-14 15:10  SHORT   4293.30   4.53  0.01   0.01   4.53   -4.53 -1.00 SL     terminal          2.15 NORMAL    0.27 small   12-17 ok
+2026-09-14 19:11  SHORT   4296.10   4.41  0.01   0.01   4.41   -4.41 -1.00 SL     terminal          2.21 NORMAL    0.67 deep    17-24 ok
+2026-09-14 19:24  SHORT   4304.38   4.28  0.01   0.01   4.28   +0.50 +0.12 SL     terminal          2.14 NORMAL    0.04 touch   17-24 ok
+2026-09-15 01:26  LONG    4294.74   2.74  0.01   0.01   2.74   +2.74 +1.00 TP     terminal          1.37 LOW       0.72 deep    00-07 ok
+2026-09-15 02:11  LONG    4292.72   3.44  0.01   0.01   3.44   -3.44 -1.00 SL     terminal          1.72 NORMAL    0.03 touch   00-07 ok
+2026-09-15 02:21  LONG    4288.85   2.90  0.01   0.01   2.90   +0.38 +0.13 SL     terminal          1.45 LOW       0.35 medium  00-07 ok
+2026-09-15 03:05  LONG    4286.58   2.13  0.02   0.02   4.26   -4.26 -1.00 SL     terminal          1.06 LOW       0.29 small   00-07 ok
+2026-09-15 03:06  LONG    4285.51   2.46  0.02   0.02   4.92   +4.92 +1.00 TP     terminal          1.23 LOW       0.78 deep    00-07 ok
+2026-09-15 03:12  LONG    4284.40   2.91  0.01   0.01   2.91   +3.27 +1.12 TP     terminal          1.54 LOW       0.22 small   00-07 ok
+2026-09-15 03:42  SHORT   4291.06   3.61  0.01   0.01   3.61   -3.61 -1.00 SL     terminal          1.79 NORMAL    0.15 small   00-07 ok
+2026-09-15 04:37  LONG    4299.23   3.90  0.01   0.01   3.90   -3.90 -1.00 SL     terminal          1.95 NORMAL    0.03 touch   00-07 ok
+2026-09-15 04:56  SHORT   4303.24   4.62  0.01   0.01   4.62   -4.62 -1.00 SL     terminal          2.31 NORMAL    0.23 small   00-07 ok
+2026-09-15 05:01  SHORT   4308.03   4.27  0.01   0.01   4.27   +0.15 +0.04 SL     terminal          2.14 NORMAL    0.05 touch   00-07 ok
+2026-09-15 05:30  SHORT   4309.67   2.81  0.01   0.01   2.81   +0.80 +0.28 SL     terminal          1.27 LOW       0.15 small   00-07 ok
+2026-09-15 05:32  SHORT   4310.65   3.21  0.01   0.01   3.21   -3.21 -1.00 SL     terminal          1.52 LOW       0.19 small   00-07 ok
+2026-09-15 05:39  SHORT   4314.17   3.47  0.01   0.01   3.47   +0.68 +0.20 SL     terminal          1.74 NORMAL    0.31 medium  00-07 ok
+2026-09-15 06:49  LONG    4306.67   2.67  0.01   0.01   2.67   -2.67 -1.00 SL     terminal          1.34 LOW       0.26 small   00-07 ok
+2026-09-15 07:11  SHORT   4305.86   2.12  0.02   0.02   4.24   +0.12 +0.03 SL     terminal          1.06 LOW       0.36 medium  07-12 ok
+2026-09-15 07:14  SHORT   4309.21   2.35  0.01   0.02   2.35   +3.17 +1.35 TP     terminal          1.38 LOW       0.86 deep    07-12 MISMATCH
+2026-09-15 07:37  LONG    4301.84   2.01  0.02   0.02   4.02   +4.02 +1.00 TP     terminal          1.01 LOW       0.26 small   07-12 ok
+2026-09-15 07:42  SHORT   4306.01   2.54  0.01   0.01   2.54   +0.21 +0.08 SL     terminal          1.30 LOW       0.48 medium  07-12 ok
+
+strategy trades: 206 total = 2 pre-fix (oversized, excluded from the forward set) + 200 post-fix + 4 closed by hand (excluded: the exit was not the strategy's)
+    MANUAL CLOSE 2026-09-08 11:26 SHORT entry 4396.14 net -0.01
+    MANUAL CLOSE 2026-09-09 13:38 SHORT entry 4398.52 net +2.34
+    MANUAL CLOSE 2026-09-09 21:01 SHORT entry 4417.97 net +1.94
+    MANUAL CLOSE 2026-09-09 22:02 LONG entry 4399.91 net +2.51
+post-fix sizing: 193 of 200 lots equal the terminal-priced lot for $5.00; risk at stop [4.79, 2.8, 2.88, 3.97, 3.54, 3.46, 5.99, 4.32, 5.02, 4.98, 4.66, 4.27, 4.17, 4.31, 4.43, 3.1, 3.12, 3.79, 4.21, 2.72, 3.83, 4.46, 3.44, 4.03, 2.6, 2.79, 4.61, 4.61, 3.64, 3.68, 5.03, 4.57, 3.3, 2.88, 2.81, 4.32, 4.08, 4.06, 2.55, 4.17, 3.91, 3.7, 4.05, 2.55, 3.09, 2.66, 3.14, 4.9, 2.73, 2.87, 3.38, 3.07, 3.13, 2.7, 4.28, 3.93, 5.65, 4.97, 4.08, 3.38, 3.07, 3.74, 3.54, 4.9, 3.37, 3.67, 2.57, 3.54, 4.14, 4.3, 3.28, 3.78, 3.66, 4.44, 4.16, 5.05, 3.39, 3.42, 2.85, 2.53, 4.4, 4.52, 5.0, 2.64, 2.91, 2.96, 3.64, 4.06, 4.86, 4.21, 3.89, 3.83, 3.89, 3.69, 4.06, 3.6, 3.84, 3.88, 3.38, 3.12, 3.28, 3.24, 2.72, 3.7, 3.46, 4.08, 4.69, 3.66, 4.12, 4.89, 4.52, 4.05, 4.54, 4.13, 2.79, 3.26, 3.6, 4.72, 4.78, 4.47, 4.55, 4.49, 4.82, 4.58, 4.69, 4.78, 4.96, 4.03, 2.92, 4.0, 2.44, 2.52, 3.67, 3.0, 4.28, 3.62, 4.59, 4.23, 4.27, 4.57, 4.21, 3.81, 2.95, 3.1, 3.7, 4.01, 3.77, 3.66, 2.9, 2.65, 2.61, 4.42, 4.06, 3.28, 3.52, 4.13, 4.28, 4.19, 4.49, 4.44, 2.77, 2.96, 3.44, 2.91, 3.53, 3.83, 4.89, 3.35, 4.22, 4.14, 4.7, 4.28, 3.91, 4.01, 4.32, 4.34, 4.08, 3.2, 3.25, 4.53, 4.41, 4.28, 2.74, 3.44, 2.9, 4.26, 4.92, 2.91, 3.61, 3.9, 4.62, 4.27, 2.81, 3.21, 3.47, 2.67, 4.24, 2.35, 4.02, 2.54]
+since fix: 96 min-lot skips, 0 'could not price' skips, 96 journal SKIP rows, 0 field-verified lines, 10 wrong-field warnings, 10 engine starts, 0 errors/tracebacks, 26 warnings, 0 breaker/pause lines
+
+POST-FIX OVERALL
+                          trades wins loss   win%      net    PF    exp$   expR   maxDD streak
+all                          200  118   82   59.0   -87.43  0.72   -0.44  -0.12   96.40      3
+
+BY DIRECTION
+                          trades wins loss   win%      net    PF    exp$   expR   maxDD streak
+LONG                         122   70   52   57.4   -66.90  0.67   -0.55  -0.14   73.91      3
+SHORT                         78   48   30   61.5   -20.53  0.81   -0.26  -0.08   30.92      4
+
+BY SESSION
+                          trades wins loss   win%      net    PF    exp$   expR   maxDD streak
+00-07                         51   31   20   60.8   -16.34  0.78   -0.32  -0.09   24.57      3
+07-12                         64   31   33   48.4   -68.77  0.46   -1.07  -0.27   80.46      5
+12-17                         48   30   18   62.5    -1.25  0.98   -0.03  -0.00   15.75      3
+17-24                         37   26   11   70.3    -1.07  0.97   -0.03  -0.04   18.40      2
+
+BY ATR REGIME
+                          trades wins loss   win%      net    PF    exp$   expR   maxDD streak
+LOW                           70   42   28   60.0   -28.82  0.69   -0.41  -0.10   45.25      4
+NORMAL                       111   62   49   55.9   -69.13  0.64   -0.62  -0.16   70.26      4
+HIGH                          19   14    5   73.7   +10.52  1.44   +0.55  +0.11    9.78      2
+
+BY PENETRATION
+                          trades wins loss   win%      net    PF    exp$   expR   maxDD streak
+touch                         29   15   14   51.7   -22.95  0.56   -0.79  -0.23   31.50      5
+small                         61   41   20   67.2    +0.30  1.00   +0.00  -0.00   41.93      3
+medium                        45   25   20   55.6   -34.00  0.56   -0.76  -0.18   39.97      4
+deep                          65   37   28   56.9   -30.78  0.71   -0.47  -0.13   44.67      4
+n/a                            0    0    0    0.0    +0.00  0.00   +0.00  +0.00    0.00      0
+
+17-24 LONG vs OTHER LONG vs 17-24 SHORT
+                          trades wins loss   win%      net    PF    exp$   expR   maxDD streak
+17-24 LONG                    25   18    7   72.0    +3.74  1.14   +0.15  +0.01   11.51      2
+other LONG                    97   52   45   53.6   -70.64  0.59   -0.73  -0.18   77.65      3
+17-24 SHORT                   12    8    4   66.7    -4.81  0.68   -0.40  -0.13    9.99      2
+other SHORT                   66   40   26   60.6   -15.72  0.83   -0.24  -0.07   27.03      4
+
+PRE-FIX (for the record only)
+                          trades wins loss   win%      net    PF    exp$   expR   maxDD streak
+pre-fix                        2    0    2    0.0   -96.12  0.00  -48.06  -1.00   96.12      2
+
+sizing / pricing warnings since fix:
+    2026-09-07 14:26:39 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-08 17:15:45 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-09 06:58:29 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-09 14:23:45 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-09 15:08:03 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-13 13:19:57 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-13 16:09:30 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-14 00:15:23 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-14 09:38:39 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+    2026-09-15 00:39:12 WARNING [XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong: a 1 move costs $10.00/lot by the field but $100.00/lot by the terminal; this symbol i
+errors since fix:
+    none
+breaker / pause lines since fix:
+    none
+
+
+(B)
+======================================================================================================================
+SUPPLEMENTARY SECTIONS (read-only; terminal deals, bot journal/log, recorded tick paths)
+======================================================================================================================
+
+ACCOUNT  balance $2971.45  equity $2971.45  deposits [3000.0]  server time 2026-09-15 08:19
+  since the first deposit: -28.55 (includes the 2 pre-fix oversized trades, -96.12, and the 4 closed by hand)
+
+BY SERVER DAY (post-fix strategy exits; closed by hand excluded)
+  day            trades  wins   win%     net$    PF     cum$   exits
+  Mon 09-07           4     2   50.0    -2.52  0.63    -2.52   {'SL': 3, 'TP': 1}
+  Tue 09-08          32    21   65.6    -4.42  0.90    -6.94   {'SL': 24, 'TP': 8}
+  Wed 09-09          29    18   62.1    -2.09  0.94    -9.03   {'SL': 22, 'TP': 7}
+  Thu 09-10          48    25   52.1   -33.29  0.63   -42.32   {'SL': 36, 'TP': 12}
+  Fri 09-11          36    24   66.7    -9.64  0.80   -51.96   {'SL': 28, 'TP': 8}
+  Mon 09-14          33    17   51.5   -30.22  0.51   -82.18   {'SL': 27, 'TP': 6}
+  Tue 09-15          18    11   61.1    -5.25  0.80   -87.43   {'TP': 5, 'SL': 13}
+
+FILL vs ORDER PRICE (journal ENTRY price vs broker fill; + = worse for the trade)
+  entries matched: 200/200; median +0.00, mean +0.012, worse 45, better 57, same 98; worst +2.53, best -0.57 (price units; 1.00 = $1 at 0.01 lot)
+  risk at stop from the ORDER price: max $5.00 (all within the $5.00 budget: True)
+  risk at stop from the FILL price above $5.00: 5 trades, all caused by the fill landing beyond the order price:
+    09-08 08:30 LONG  order 4418.11 fill 4420.64 risk $3.46 at order -> $5.99 at fill (TP, net +0.93)
+    09-08 09:02 LONG  order 4415.65 fill 4415.80 risk $4.87 at order -> $5.02 at fill (SL, net -5.02)
+    09-08 19:10 LONG  order 4382.36 fill 4382.64 risk $4.75 at order -> $5.03 at fill (SL, net +0.24)
+    09-09 17:56 LONG  order 4417.02 fill 4417.77 risk $4.90 at order -> $5.65 at fill (TP, net +4.15)
+    09-10 05:06 SHORT order 4418.24 fill 4418.17 risk $4.98 at order -> $5.05 at fill (TP, net +4.91)
+
+BOT UPTIME (bot.log silences over 5 min that overlap market hours: Mon-Thu 01:00-24:00, Fri 01:00-23:00 server)
+  market time since the fix: 130.9 h; bot silent for 32.5 h of it (24.8%); covered 75.2%
+    Mon 09-07 16:12 -> Mon 09-07 16:41    0.5 h of market time
+    Mon 09-07 16:41 -> Mon 09-07 21:53    5.2 h of market time
+    Mon 09-07 21:53 -> Tue 09-08 08:24    9.5 h of market time
+    Tue 09-08 15:52 -> Tue 09-08 17:11    1.3 h of market time
+    Tue 09-08 21:41 -> Tue 09-08 21:58    0.3 h of market time
+    Wed 09-09 00:29 -> Wed 09-09 06:58    6.0 h of market time
+    Wed 09-09 07:24 -> Wed 09-09 08:18    0.9 h of market time
+    Wed 09-09 14:12 -> Wed 09-09 14:23    0.2 h of market time
+    Wed 09-09 15:59 -> Wed 09-09 16:21    0.4 h of market time
+    Wed 09-09 16:21 -> Wed 09-09 16:57    0.6 h of market time
+    Wed 09-09 22:15 -> Wed 09-09 23:11    0.9 h of market time
+    Wed 09-09 23:11 -> Thu 09-10 00:02    0.8 h of market time
+    Mon 09-14 09:31 -> Mon 09-14 09:38    0.1 h of market time
+    Mon 09-14 16:33 -> Mon 09-14 17:01    0.5 h of market time
+    Mon 09-14 17:01 -> Mon 09-14 18:39    1.6 h of market time
+    Mon 09-14 19:38 -> Mon 09-14 23:14    3.6 h of market time
+  known causes: PC sleep / Modern Standby (Windows power events), an unexpected reboot on 09-13 22:23, a Windows Update restart on 09-15 00:37,
+  and a manual stop on 09-14 09:31 (restarted 09:38 on request). The task restarted the bot after each reboot.
+
+TICK-PATH RECORDER (schema 2, live since 2026-09-13 16:09:30)
+  strategy positions since then: 51; with a file: 51; one open + one close + continuous seq: 51
+  complete: 51/51; quote after exit: 51/51; ticks past an exit: 0; found via deal history: 0; ticks: 72,183; disk: 20.0 MB
+  (plus 2 Friday 09-11 positions recorded from history at the 09-13 restart; not part of this sample)
+
+TICK-ACCURATE EXCURSIONS (51 recorded strategy trades; longs marked at bid, shorts at ask)
+  Descriptive only. No exit-rule counterfactuals were computed: the pre-registered exit analysis waits for
+  >= 150 complete recorded paths, so these numbers must not be used to pick thresholds.
+  exit      n  MFE R med  MFE R p75  MAE R med  MAE R p25  hold s med  spread pts med  stop-amb ticks
+  all      51       0.56       0.92      -0.92      -1.02         271              34            2.8%
+  TP       11       1.04       1.08      -0.43      -0.57         195              40            8.5%
+  TRAIL    17       0.66       0.86      -0.31      -0.43         310              33            2.8%
+  SL       23       0.03       0.31      -1.02      -1.05         304              34            0.0%
+  MFE/MAE = best/worst marked move from the fill in units of the initial stop distance (1R).
+  spread = broker quote at the fill (points); stop-amb = share of ticks where the live stop is bracketed, not exact.
