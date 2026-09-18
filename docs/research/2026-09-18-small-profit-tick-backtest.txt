@@ -1,0 +1,68 @@
+bars 40439  2026-08-03 21:38:00 -> 2026-09-15 15:06:00 | ticks 16,728,782 | raw signals 3180
+median tick spread 31 points
+
+=== LIVE PROFILE  +1.5/-2.0, stack 3, 07-12 blocked, spread<=45
+  all            1311 trades ( 41.0/day)  win  49.0%  net   -453.46  PF 0.68  avg -0.346  worst -5.47  maxDD  453.46
+  before 09-07   1029 trades ( 41.2/day)  win  48.8%  net   -365.03  PF 0.67  avg -0.355  worst -5.47  maxDD  365.03  <- out of sample
+  from 09-07      282 trades ( 40.3/day)  win  50.0%  net    -88.43  PF 0.71  avg -0.314  worst -3.84  maxDD   92.32  <- period the filters were chosen on
+  skipped: {'cap_open': 6, 'session': 708, 'spread': 494, 'breaker': 660, 'no_tick': 1}
+
+  by server hour block (live profile):
+    00-07    480 trades ( 15.5/day)  win  48.3%  net   -173.43  PF 0.67  avg -0.361  worst -3.35  maxDD  182.79
+    07-12  no trades
+    12-17    458 trades ( 17.0/day)  win  47.2%  net   -196.34  PF 0.62  avg -0.429  worst -5.47  maxDD  196.34
+    17-24    373 trades ( 18.6/day)  win  52.3%  net    -83.69  PF 0.78  avg -0.224  worst -3.09  maxDD  104.90
+
+  by week (live profile):
+    2026-08-03/2026-08-09    163 trades ( 32.6/day)  win  41.7%  net    -96.10  PF 0.51  avg -0.590  worst -2.82  maxDD   96.10
+    2026-08-10/2026-08-16    227 trades ( 45.4/day)  win  53.3%  net    -39.99  PF 0.82  avg -0.176  worst -3.10  maxDD   70.38
+    2026-08-17/2026-08-23    228 trades ( 45.6/day)  win  52.2%  net    -55.18  PF 0.76  avg -0.242  worst -3.25  maxDD   55.18
+    2026-08-24/2026-08-30    240 trades ( 48.0/day)  win  50.4%  net    -72.56  PF 0.71  avg -0.302  worst -5.47  maxDD   77.55
+    2026-08-31/2026-09-06    171 trades ( 34.2/day)  win  42.7%  net   -101.20  PF 0.52  avg -0.592  worst -4.08  maxDD  104.20
+    2026-09-07/2026-09-13    245 trades ( 49.0/day)  win  52.2%  net    -53.60  PF 0.78  avg -0.219  worst -2.82  maxDD   71.53
+    2026-09-14/2026-09-20     37 trades ( 18.5/day)  win  35.1%  net    -34.83  PF 0.36  avg -0.941  worst -3.84  maxDD   34.83
+
+  days: 32  green 3  red 29  best +10.70  worst -23.77  median -16.59
+  holding time: median 70s  90% under 312s
+
+=== same, breakers off (raw edge of the entries + exits)
+  all            1922 trades ( 60.1/day)  win  48.4%  net   -717.07  PF 0.66  avg -0.373  worst -12.63  maxDD  721.57
+  before 09-07   1489 trades ( 59.6/day)  win  47.7%  net   -597.05  PF 0.64  avg -0.401  worst -12.63  maxDD  597.05  <- out of sample
+  from 09-07      433 trades ( 61.9/day)  win  50.8%  net   -120.02  PF 0.73  avg -0.277  worst -3.84  maxDD  128.41  <- period the filters were chosen on
+
+=== no stacking (1 position), breakers off
+  all            1518 trades ( 47.4/day)  win  48.0%  net   -591.45  PF 0.65  avg -0.390  worst -12.63  maxDD  596.24
+  before 09-07   1185 trades ( 47.4/day)  win  47.5%  net   -487.60  PF 0.63  avg -0.411  worst -12.63  maxDD  487.60  <- out of sample
+  from 09-07      333 trades ( 47.6/day)  win  49.8%  net   -103.85  PF 0.71  avg -0.312  worst -3.84  maxDD  112.53  <- period the filters were chosen on
+
+=== all hours (07-12 not blocked), breakers off
+  all            2525 trades ( 78.9/day)  win  47.1%  net  -1047.40  PF 0.63  avg -0.415  worst -12.63  maxDD 1055.76
+  before 09-07   1924 trades ( 77.0/day)  win  47.1%  net   -804.03  PF 0.63  avg -0.418  worst -12.63  maxDD  804.03  <- out of sample
+  from 09-07      601 trades ( 85.9/day)  win  47.1%  net   -243.37  PF 0.64  avg -0.405  worst -3.84  maxDD  255.62  <- period the filters were chosen on
+
+=== 12-24 only, breakers off
+  all            1392 trades ( 43.5/day)  win  48.7%  net   -510.70  PF 0.67  avg -0.367  worst -12.63  maxDD  516.47
+  before 09-07   1091 trades ( 43.6/day)  win  47.5%  net   -453.47  PF 0.63  avg -0.416  worst -12.63  maxDD  453.47  <- out of sample
+  from 09-07      301 trades ( 43.0/day)  win  53.2%  net    -57.23  PF 0.81  avg -0.190  worst -3.84  maxDD   63.29  <- period the filters were chosen on
+
+=== exit grid, breakers off, stack 3, 07-12 blocked (exploratory: picking the best cell is curve fitting)
+  +0.5/-1.0 all:  1930 trades ( 60.3/day)  win  45.3%  net   -735.48  PF 0.37  avg -0.381  worst -5.47  maxDD  737.48
+           oos:  1496 trades ( 59.8/day)  win  45.8%  net   -560.51  PF 0.38  avg -0.375  worst -5.47  maxDD  560.51
+  +1.0/-1.0 all:  1930 trades ( 60.3/day)  win  34.8%  net   -723.82  PF 0.48  avg -0.375  worst -5.47  maxDD  726.82
+           oos:  1496 trades ( 59.8/day)  win  34.7%  net   -565.04  PF 0.48  avg -0.378  worst -5.47  maxDD  565.04
+  +1.0/-2.0 all:  1922 trades ( 60.1/day)  win  56.1%  net   -707.13  PF 0.60  avg -0.368  worst -5.47  maxDD  710.13
+           oos:  1489 trades ( 59.6/day)  win  55.1%  net   -593.52  PF 0.58  avg -0.399  worst -5.47  maxDD  594.52
+  +1.5/-2.0 all:  1922 trades ( 60.1/day)  win  48.4%  net   -717.07  PF 0.66  avg -0.373  worst -12.63  maxDD  721.57
+           oos:  1489 trades ( 59.6/day)  win  47.7%  net   -597.05  PF 0.64  avg -0.401  worst -12.63  maxDD  597.05
+  +2.0/-2.0 all:  1922 trades ( 60.1/day)  win  42.7%  net   -698.58  PF 0.70  avg -0.363  worst -12.63  maxDD  706.35
+           oos:  1489 trades ( 59.6/day)  win  42.1%  net   -582.06  PF 0.68  avg -0.391  worst -12.63  maxDD  582.06
+  +1.0/-3.0 all:  1900 trades ( 59.4/day)  win  66.9%  net   -703.02  PF 0.64  avg -0.370  worst -13.15  maxDD  714.59
+           oos:  1473 trades ( 58.9/day)  win  65.7%  net   -618.80  PF 0.61  avg -0.420  worst -13.15  maxDD  619.80
+  +2.0/-3.0 all:  1892 trades ( 59.1/day)  win  52.5%  net   -853.20  PF 0.70  avg -0.451  worst -13.15  maxDD  868.13
+           oos:  1467 trades ( 58.7/day)  win  51.3%  net   -747.82  PF 0.67  avg -0.510  worst -13.15  maxDD  747.82
+  +3.0/-3.0 all:  1886 trades ( 58.9/day)  win  43.0%  net  -1014.40  PF 0.71  avg -0.538  worst -17.26  maxDD 1026.40
+           oos:  1462 trades ( 58.5/day)  win  42.0%  net   -881.34  PF 0.68  avg -0.603  worst -17.26  maxDD  881.34
+  +3.0/-2.0 all:  1918 trades ( 59.9/day)  win  32.7%  net   -908.53  PF 0.67  avg -0.474  worst -16.77  maxDD  918.26
+           oos:  1485 trades ( 59.4/day)  win  32.2%  net   -759.71  PF 0.65  avg -0.512  worst -16.77  maxDD  763.34
+  +4.0/-2.0 all:  1918 trades ( 59.9/day)  win  27.2%  net   -962.97  PF 0.68  avg -0.502  worst -16.77  maxDD  974.97
+           oos:  1485 trades ( 59.4/day)  win  26.4%  net   -823.49  PF 0.66  avg -0.555  worst -16.77  maxDD  825.29

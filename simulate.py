@@ -176,7 +176,11 @@ class FakeMT5:
     def terminal_info(self): return SimpleNamespace(connected=True)
     def last_error(self): return (0, "ok")
     def symbol_select(self, symbol, enable=True): return symbol == SYMBOL
-    def symbol_info(self, symbol): return self.info if symbol == SYMBOL else None
+    def symbol_info(self, symbol):
+        if symbol != SYMBOL:
+            return None
+        self.info.bid, self.info.ask = self.bid, self.ask      # the terminal prices moves off the live quote
+        return self.info
     def order_calc_profit(self, order_type, symbol, lot, price_open, price_close):
         if symbol != SYMBOL:
             return None
@@ -251,6 +255,7 @@ def run_simulation(send_real_telegram: bool = False, log_dir: str = os.path.join
                  "LDN_ENABLED": london, "LDN_SYMBOLS": [SYMBOL]}           # London engine on the scripted symbol
     if not trades:
         overrides.update({"MANAGE_POSITIONS": True, "SESSION_START_HOUR": 0, "SESSION_END_HOUR": 24,
+                          "SESSION_BLOCKED_HOURS": (), "EXIT_MODE": "atr",   # the script is written around ATR stops
                           "MAX_CONSECUTIVE_LOSSES": 2, "MAX_DAILY_LOSS_USD": 0.1})
     saved = {k: getattr(config, k) for k in overrides}
     config.__dict__.update(overrides)

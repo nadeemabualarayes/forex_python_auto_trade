@@ -1,8 +1,11 @@
 <#
 .SYNOPSIS
-  Registers (or removes) the "ForexScalpTest" Windows scheduled task that keeps the scalp-test
+  Registers (or removes) the "ForexSmallProfit" Windows scheduled task that keeps the small-profit
   bot running. It only ever stops python processes launched from THIS folder, so it cannot
   touch the evaluation bot ("ForexBot", in the main checkout) and vice versa.
+
+  This bot drives the same terminal and demo account as the scalp-test bot ("ForexScalpTest"):
+  only one of the two may run. Stop and DISABLE the other task before starting this one.
 
 .DESCRIPTION
   The task starts run_bot.cmd when you log on and restarts it every minute if it exits
@@ -39,7 +42,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$TaskName   = "ForexScalpTest"
+$TaskName   = "ForexSmallProfit"
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Launcher   = Join-Path $ProjectDir "run_bot.cmd"
 
@@ -115,7 +118,7 @@ if ($null -ne $existing) {
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Settings $settings -Principal $principal `
-    -Description "Forex MT5 scalp-test bot (XAUUSD M1, own terminal + demo account). Restarts automatically on failure." | Out-Null
+    -Description "Forex MT5 small-profit bot (XAUUSD M1, fixed-dollar exits, scalp-test terminal + demo account). Restarts automatically on failure." | Out-Null
 
 Write-Host "Task '$TaskName' registered for user $user."
 Write-Host "  starts at logon, restarts every 1 min on failure, no time limit"

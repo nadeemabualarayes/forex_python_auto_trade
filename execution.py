@@ -86,6 +86,14 @@ def trading_blockers(terminal, account) -> list[str]:
     return reasons
 
 
+def stacking_allowed(account, hedging_mode=None) -> bool:
+    """Several positions per symbol only exist on a hedging account; on netting a second order merges into
+    the first and replaces its SL/TP. Unknown account -> not allowed."""
+    if hedging_mode is None:
+        hedging_mode = getattr(mt5, "ACCOUNT_MARGIN_MODE_RETAIL_HEDGING", 2)
+    return account is not None and getattr(account, "margin_mode", None) == hedging_mode
+
+
 # -- Data ---------------------------------------------------------------------
 def _to_df(rates):
     if rates is None or len(rates) == 0:
@@ -216,6 +224,19 @@ def verify_tick_value(symbol: str, info=None):
     if loss is None:
         return None
     return _record_trust(symbol, info, loss, distance)
+
+
+def usd_per_price_unit(symbol: str, info):
+    """Account-currency value of a 1.0 price move on the MINIMUM lot, priced by the terminal over a 100-tick
+    move at the last known price. None when the terminal cannot price it (never the tick-value field)."""
+    if info is None or info.trade_tick_size <= 0:
+        return None
+    price = getattr(info, "bid", 0) or getattr(info, "ask", 0) or 0
+    distance = info.trade_tick_size * 100
+    loss = terminal_loss_per_lot(symbol, "BUY", price, distance)
+    if loss is None:
+        return None
+    return loss / distance * info.volume_min
 
 
 def loss_per_lot(symbol: str, side, price, sl_distance_price: float, info) -> tuple:

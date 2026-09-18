@@ -419,3 +419,35 @@ class TestVerifyTickValue:
         assert execution.TICK_VALUE_TRUSTED == {"XAUUSD": False, "EURUSD": True}
         assert "[XAUUSD] SYMBOL_TRADE_TICK_VALUE 0.1 is wrong" in caplog.text
         assert "[EURUSD] tick value 1.0 verified" in caplog.text
+
+
+# -- What a 1.0 price move pays on the minimum lot (fixed-dollar exits) ---------------------------------
+from execution import usd_per_price_unit  # noqa: E402
+
+
+class TestUsdPerPriceUnit:
+    def test_gold_minimum_lot_pays_a_dollar_per_dollar_move(self, monkeypatch):
+        monkeypatch.setattr(execution, "mt5", _fake_mt5(GOLD_INFO, gold_calc))
+        assert usd_per_price_unit("XAUUSD", GOLD_INFO) == pytest.approx(1.0)       # 100 oz x 0.01 lot
+
+    def test_silver_is_priced_by_the_terminal_not_the_tick_value_field(self, monkeypatch):
+        monkeypatch.setattr(execution, "mt5", _fake_mt5(SILVER_INFO, silver_calc))
+        assert usd_per_price_unit("XAGUSD", SILVER_INFO) == pytest.approx(50.0)    # field would say 5.0
+
+    def test_none_when_the_terminal_cannot_price_it(self, monkeypatch):
+        monkeypatch.setattr(execution, "mt5", _fake_mt5(GOLD_INFO))                 # no calculator
+        assert usd_per_price_unit("XAUUSD", GOLD_INFO) is None
+        assert usd_per_price_unit("XAUUSD", None) is None
+
+
+# -- Stacked entries need a hedging account: on netting a second order merges into the first ------------
+from execution import stacking_allowed  # noqa: E402
+
+
+class TestStackingAllowed:
+    def test_hedging_account_may_stack(self):
+        assert stacking_allowed(SimpleNamespace(margin_mode=2), hedging_mode=2)
+
+    def test_netting_or_unknown_account_may_not(self):
+        assert not stacking_allowed(SimpleNamespace(margin_mode=0), hedging_mode=2)
+        assert not stacking_allowed(None, hedging_mode=2)

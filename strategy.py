@@ -17,6 +17,8 @@ def in_session(server_dt: datetime) -> bool:
         return True
     if server_dt.weekday() not in config.TRADING_WEEKDAYS:
         return False
+    if server_dt.hour in config.SESSION_BLOCKED_HOURS:
+        return False
     return config.SESSION_START_HOUR <= server_dt.hour < config.SESSION_END_HOUR
 
 
@@ -90,6 +92,25 @@ def build_levels(side: str, ask: float, bid: float, atr: float,
     return Levels(side, bid, bid + sl_dist, bid - tp_dist, sl_dist)
 
 
+def build_dollar_levels(side: str, ask: float, bid: float, sl_usd: float, tp_usd: float,
+                        usd_per_unit, point: float = 0.0, min_dist: float = 0.0) -> Levels | None:
+    """Stop and target a fixed account-currency amount from the entry. `usd_per_unit` is what a 1.0 price
+    move pays on the traded volume. Distances are floored to `point`, so the loss at the stop never exceeds
+    sl_usd. None when the move cannot be priced or a level falls inside the broker's minimum distance."""
+    if usd_per_unit is None or np.isnan(usd_per_unit) or usd_per_unit <= 0 or sl_usd <= 0 or tp_usd <= 0:
+        return None
+    sl_dist, tp_dist = sl_usd / usd_per_unit, tp_usd / usd_per_unit
+    if point > 0:
+        sl_dist = np.floor(sl_dist / point + 1e-9) * point
+        tp_dist = np.floor(tp_dist / point + 1e-9) * point
+    if min(sl_dist, tp_dist) <= 0 or min(sl_dist, tp_dist) < min_dist:
+        return None
+    sl_dist, tp_dist = float(sl_dist), float(tp_dist)
+    if side == "BUY":
+        return Levels(side, ask, ask - sl_dist, ask + tp_dist, sl_dist)
+    return Levels(side, bid, bid + sl_dist, bid - tp_dist, sl_dist)
+
+
 # -- Per-symbol trader (MT5-facing) ---------------------------------------------
 class SymbolTrader:
     def __init__(self, symbol: str, engine=None):
@@ -135,8 +156,10 @@ class SymbolTrader:
         """One evaluation pass. Places at most one order, once per closed bar.
         `entries_today` is this engine's entry count; `news_block` the calendar blackout reason or None."""
         e = self.engine
-        if bot_positions(self.symbol, magic=e.magic):
-            self._skip("position open")
+        open_count = len(bot_positions(self.symbol, magic=e.magic))
+        if open_count >= e.max_open_positions:
+            self._skip("position open" if e.max_open_positions <= 1
+                       else f"{open_count} positions open (cap {e.max_open_positions})")
             return
         if not in_session(server_dt):
             self._skip("outside session")

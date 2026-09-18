@@ -56,8 +56,8 @@ def no_network(monkeypatch):
 
 
 # The shared test-suite was written against the evaluation profile on `main`. This branch ships the
-# scalp-test profile in config.py, so pin the values the tests assume; test_scalp_profile.py checks
-# the profile itself.
+# small-profit profile in config.py, so pin the values the tests assume; test_small_profit_profile.py
+# checks the profile itself.
 EVALUATION_PROFILE = dict(
     SYMBOLS=["XAUUSD", "XAGUSD"], TIMEFRAME=sys.modules["MetaTrader5"].TIMEFRAME_M5,
     MAGIC_NUMBER=998877, MAX_DAILY_LOSS_USD=30.0, MAX_CONSECUTIVE_LOSSES=6, MAX_TRADES_PER_DAY=6,
@@ -65,13 +65,14 @@ EVALUATION_PROFILE = dict(
     CANDLE_MODE="confirm", NEWS_FILTER_ENABLED=True, TREND_FILTER_ENABLED=True, MANAGE_POSITIONS=False,
     LDN_ENABLED=True, LOOP_SLEEP_SECONDS=10, ERROR_SLEEP_SECONDS=30, BREAKER_SLEEP_SECONDS=300,
     WEB_PORT=8080, PAGES_PUBLISH_ENABLED=True,
+    EXIT_MODE="atr", SESSION_BLOCKED_HOURS=(), MAX_OPEN_POSITIONS=1,
 )
 EVALUATION_PROFILE["MAX_ALLOWED_SPREAD_POINTS"] = {**config.MAX_ALLOWED_SPREAD_POINTS, "XAUUSD": 35}
 
 
 @pytest.fixture(autouse=True)
 def evaluation_profile(request, monkeypatch):
-    if request.node.fspath.basename == "test_scalp_profile.py":
+    if request.node.fspath.basename == "test_small_profit_profile.py":
         return
     for key, value in EVALUATION_PROFILE.items():
         monkeypatch.setattr(config, key, value)

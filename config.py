@@ -31,17 +31,21 @@ MT5_SERVER = os.environ.get("MT5_SERVER", "")
 MT5_PORTABLE = os.environ.get("MT5_PORTABLE", "").lower() in ("1", "true", "yes")
 
 # ── Symbols & timeframe ─────────────────────────────────────────────────────
-SYMBOLS = ["XAUUSD"]                    # scalp-test instance: Gold only
+SYMBOLS = ["XAUUSD"]                    # small-profit instance: Gold only
 TIMEFRAME = mt5.TIMEFRAME_M1            # signal timeframe (M1: fast execution test)
-MAGIC_NUMBER = 998811                   # scalp-test magic, distinct from the evaluation bot (998877)
+MAGIC_NUMBER = 998822                   # small-profit magic; 998811 = scalp-test (same account), 998877 = evaluation bot
 
 # ── Risk (account-wide) ────────────────────────────────────────────────────
-RISK_USD_PER_TRADE = 5.0                # max loss at SL per trade, account currency
-MAX_DAILY_LOSS_USD = 150.0              # net daily loss -> pause until next server day (relaxed: execution test)
-MAX_CONSECUTIVE_LOSSES = 25             # closed losers in a row -> pause (relaxed: execution test)
-MAX_TRADES_PER_DAY = 60                 # entries per server day across all symbols
+RISK_USD_PER_TRADE = 5.0                # max loss at SL per trade in EXIT_MODE "atr"; "usd" mode budgets EXIT_SL_USD
+MAX_DAILY_LOSS_USD = 20.0               # net daily loss -> pause until next server day (ten $2 stops; the -$33 day
+                                        # of 2026-09-17 is what this profile exists to prevent)
+MAX_CONSECUTIVE_LOSSES = 8              # closed losers in a row -> pause
+MAX_TRADES_PER_DAY = 120                # entries per server day: many small trades is the point of this profile
+MAX_OPEN_POSITIONS = 3                  # per symbol; above 1 entries stack (needs a hedging account). Stacked
+                                        # mean-reversion entries all lose together in a trend: worst cluster 3 x $2
 MAX_ALLOWED_SPREAD_POINTS = {           # per-symbol spread cap in points
-    "XAUUSD": 100,                      # relaxed: live demo gold spread is ~30 points
+    "XAUUSD": 45,                       # entry spread >= 45 points lost in both halves of the 2026-09-17 tick study;
+                                        # live demo gold spread is ~30 points, and 45 is already 30% of the $1.50 target
     "XAGUSD": 40,
     "EURUSD": 10,
     "GBPUSD": 15,
@@ -58,6 +62,16 @@ RSI_OVERBOUGHT = 65
 SL_ATR_MULTIPLIER = 2.0                 # M1 ATR is tiny; 2:2 keeps trades short-lived
 TP_ATR_MULTIPLIER = 2.0
 RATES_LOOKBACK = 120                    # bars fetched on the signal timeframe
+
+# ── Exit mode ──────────────────────────────────────────────────────────────
+# "atr": SL/TP are ATR multiples (above), lot sized to RISK_USD_PER_TRADE.
+# "usd": SL/TP sit a fixed dollar amount from the entry on the MINIMUM lot, placed broker-side with the order,
+#        so they fill on the exact tick and need no running bot. Small-profit profile (2026-09-18): the ATR
+#        stop cost -$4.4 to -$4.8 per loser; on the 299 tick paths +1.5/-2 lost least of the five envelopes
+#        tested (-$89 vs -$152 live, max drawdown 160 -> 94). A -$1 stop is inside the noise (3 spreads).
+EXIT_MODE = "usd"
+EXIT_TP_USD = 1.5                       # target per trade, account currency
+EXIT_SL_USD = 2.0                       # loss at the stop per trade; also the risk budget in "usd" mode
 
 # ── Candlestick patterns (candles.py) ─────────────────────────────────────
 CANDLE_MODE = "off"                     # "off": BB+RSI only | "confirm": BB+RSI setup within CANDLE_LOOKBACK bars
@@ -90,9 +104,11 @@ SESSION_FILTER_ENABLED = True
 SESSION_START_HOUR = 0                  # inclusive (24h server day, weekdays only; sweep 2026-09-06)
 SESSION_END_HOUR = 24                   # exclusive
 TRADING_WEEKDAYS = (0, 1, 2, 3, 4)      # Mon..Fri
+SESSION_BLOCKED_HOURS = (7, 8, 9, 10, 11)   # server hours with no entries: 07-12 lost in both halves of the 299-trade
+                                        # tick study and under every dollar envelope (2026-09-17, -$70 of 91 trades at +1.5/-2)
 
 # ── Position management ────────────────────────────────────────────────────
-MANAGE_POSITIONS = True                 # on: exercises the SL-modify path as part of the execution test
+MANAGE_POSITIONS = False                # the broker-side dollar TP/SL is the whole exit; a 1-ATR breakeven sits beyond the target
 BREAKEVEN_ATR = 1.0                     # move SL to entry after this much ATR in profit
 TRAIL_ATR = 1.0                         # then trail SL this far behind price
 
@@ -143,10 +159,8 @@ WEB_RECENT_TRADES = 50                  # journal rows shown on the page
 
 # ── Trade history & analytics ───────────────────────────────────────────────
 # Dashboard statistics ignore trades entered before this server time; "" counts everything.
-# Set to the restart that put terminal-priced sizing live, so the two 0.18-lot trades of
-# 2026-09-07 (broker tick value 10x too small, -$96 on a $5 budget) do not skew the page.
-# The deals themselves are untouched in logs/history.db and in the terminal.
-ANALYTICS_START = "2026-09-07 14:26:39"
+# Empty here: this profile has its own magic, so the account's scalp-test trades never reach its statistics.
+ANALYTICS_START = ""
 ANALYTICS_START_EPOCH = (calendar.timegm(datetime.strptime(ANALYTICS_START, "%Y-%m-%d %H:%M:%S").timetuple())
                          if ANALYTICS_START else 0)
 

@@ -18,6 +18,7 @@ def window_7_20(monkeypatch):
     monkeypatch.setattr(config, "SESSION_FILTER_ENABLED", True)
     monkeypatch.setattr(config, "SESSION_START_HOUR", 7)
     monkeypatch.setattr(config, "SESSION_END_HOUR", 20)
+    monkeypatch.setattr(config, "SESSION_BLOCKED_HOURS", ())
 
 
 class TestSession:
@@ -196,3 +197,84 @@ def test_trader_skips_when_levels_are_invalid(wired):
     t = strategy.SymbolTrader("XAUUSD", _engine(levels=lambda side, ask, bid, bar: None))
     t.step(datetime(2026, 9, 7, 12, 0), entries_today=0)
     assert wired["orders"] == [] and wired["skips"] == ["no valid stop"]
+
+
+# -- Fixed-dollar exits (small-profit profile) ---------------------------------------------------
+from strategy import build_dollar_levels  # noqa: E402
+
+
+class TestDollarLevels:
+    # gold on 0.01 lot: a 1.00 price move is worth $1.00
+    def test_buy_puts_the_stop_and_target_a_fixed_dollar_amount_from_the_ask(self):
+        lv = build_dollar_levels("BUY", ask=4300.50, bid=4300.18, sl_usd=2.0, tp_usd=1.5, usd_per_unit=1.0, point=0.01)
+        assert lv.side == "BUY" and lv.entry == 4300.50
+        assert lv.sl == pytest.approx(4298.50) and lv.tp == pytest.approx(4302.00)
+        assert lv.sl_dist == pytest.approx(2.0)
+
+    def test_sell_mirrors_from_the_bid(self):
+        lv = build_dollar_levels("SELL", ask=4300.50, bid=4300.18, sl_usd=2.0, tp_usd=1.5, usd_per_unit=1.0, point=0.01)
+        assert lv.entry == 4300.18
+        assert lv.sl == pytest.approx(4302.18) and lv.tp == pytest.approx(4298.68)
+
+    def test_distance_scales_with_the_value_of_a_price_move(self):
+        # silver on 0.01 lot: a 1.00 move is worth $50, so $2 is 0.04
+        lv = build_dollar_levels("BUY", ask=40.020, bid=40.000, sl_usd=2.0, tp_usd=1.5, usd_per_unit=50.0, point=0.001)
+        assert lv.sl_dist == pytest.approx(0.04) and lv.tp == pytest.approx(40.050)
+
+    def test_stop_distance_is_floored_to_the_point_so_the_loss_never_exceeds_the_budget(self):
+        lv = build_dollar_levels("BUY", ask=100.0, bid=99.9, sl_usd=2.0, tp_usd=1.5, usd_per_unit=3.0, point=0.01)
+        assert lv.sl_dist == pytest.approx(0.66)               # 0.6666.. floored, not rounded to 0.67
+        assert lv.sl_dist * 3.0 <= 2.0
+
+    def test_no_levels_without_a_price_for_the_move(self):
+        for bad in (0.0, -1.0, float("nan"), None):
+            assert build_dollar_levels("BUY", 100.0, 99.9, 2.0, 1.5, usd_per_unit=bad, point=0.01) is None
+
+    def test_no_levels_inside_the_broker_minimum_stop_distance(self):
+        kw = dict(side="BUY", ask=4300.5, bid=4300.2, sl_usd=2.0, tp_usd=1.5, usd_per_unit=1.0, point=0.01)
+        assert build_dollar_levels(**kw, min_dist=1.0) is not None
+        assert build_dollar_levels(**kw, min_dist=1.6) is None      # the $1.50 target is only 1.50 away
+
+
+class TestBlockedHours:
+    def test_blocked_hours_are_outside_the_session(self, monkeypatch):
+        monkeypatch.setattr(config, "SESSION_FILTER_ENABLED", True)
+        monkeypatch.setattr(config, "SESSION_START_HOUR", 0)
+        monkeypatch.setattr(config, "SESSION_END_HOUR", 24)
+        monkeypatch.setattr(config, "SESSION_BLOCKED_HOURS", (7, 8, 9, 10, 11))
+        assert in_session(datetime(2026, 9, 7, 6, 59))
+        assert not in_session(datetime(2026, 9, 7, 7, 0))
+        assert not in_session(datetime(2026, 9, 7, 11, 59))
+        assert in_session(datetime(2026, 9, 7, 12, 0))
+
+    def test_no_blocked_hours_by_default_value(self, monkeypatch):
+        monkeypatch.setattr(config, "SESSION_BLOCKED_HOURS", ())
+        assert in_session(datetime(2026, 9, 7, 9, 0))
+
+
+# -- Stacked entries: a new signal may open while earlier positions are still running -------------
+class TestStackedEntries:
+    def _open(self, monkeypatch, n):
+        monkeypatch.setattr(strategy, "bot_positions", lambda symbol=None, magic=None: [object()] * n)
+
+    def test_one_position_blocks_the_next_entry_by_default(self, wired, monkeypatch):
+        self._open(monkeypatch, 1)
+        t = strategy.SymbolTrader("XAUUSD", _engine())
+        t.step(datetime(2026, 9, 7, 12, 0), entries_today=0)
+        assert wired["orders"] == [] and t.last_skip_reason == "position open"
+
+    def test_entries_stack_up_to_the_engine_cap(self, wired, monkeypatch):
+        self._open(monkeypatch, 2)
+        t = strategy.SymbolTrader("XAUUSD", _engine(max_open_positions=3))
+        t.step(datetime(2026, 9, 7, 12, 0), entries_today=0)
+        assert wired["orders"] == [("BUY", "test", 4242)]
+
+    def test_the_cap_itself_blocks(self, wired, monkeypatch):
+        self._open(monkeypatch, 3)
+        t = strategy.SymbolTrader("XAUUSD", _engine(max_open_positions=3))
+        t.step(datetime(2026, 9, 7, 12, 0), entries_today=0)
+        assert wired["orders"] == [] and t.last_skip_reason == "3 positions open (cap 3)"
+
+    def test_scalper_profile_reads_the_cap_from_config(self, monkeypatch):
+        monkeypatch.setattr(config, "MAX_OPEN_POSITIONS", 4)
+        assert scalper_engine().max_open_positions == 4

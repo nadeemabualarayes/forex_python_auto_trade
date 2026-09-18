@@ -302,3 +302,13 @@ def test_recorder_time_is_taken_out_of_the_loop_sleep(monkeypatch):
     monkeypatch.setattr(main.time, "sleep", slept.append)
     assert main.run() == 0
     assert slept == [1.5]
+
+
+def test_stacking_is_capped_to_one_position_on_a_netting_account(monkeypatch):
+    from engines import scalper_engine
+    monkeypatch.setattr(config, "MAX_OPEN_POSITIONS", 3)
+    monkeypatch.setattr(main, "stacking_allowed", lambda account: False)
+    monkeypatch.setattr(main, "send_telegram", lambda *a, **k: None)
+    assert [e.max_open_positions for e in main.enforce_stacking([scalper_engine()])] == [1]
+    monkeypatch.setattr(main, "stacking_allowed", lambda account: True)
+    assert [e.max_open_positions for e in main.enforce_stacking([scalper_engine()])] == [3]

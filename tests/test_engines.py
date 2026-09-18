@@ -8,6 +8,7 @@ from strategy import generate_signal
 
 
 def test_scalper_profile_mirrors_config(monkeypatch):
+    monkeypatch.setattr(config, "EXIT_MODE", "atr")
     monkeypatch.setattr(config, "RISK_USD_PER_TRADE", 7.5)
     monkeypatch.setattr(config, "MAX_TRADES_PER_DAY", 3)
     e = scalper_engine()
@@ -44,6 +45,47 @@ def test_scalper_analyse_attaches_trend_only_with_htf():
     htf = pd.DataFrame({"time": pd.date_range("2026-09-01", periods=300, freq="1h"), "close": 100.0})
     out = scalper_analyse(df.copy(), htf)
     assert "trend_ema" in out
+
+
+def test_usd_exit_mode_swaps_in_the_dollar_adapters_and_budgets_the_stop(monkeypatch):
+    from engines import dollar_analyse, dollar_levels
+    monkeypatch.setattr(config, "EXIT_MODE", "usd")
+    monkeypatch.setattr(config, "EXIT_SL_USD", 2.0)
+    monkeypatch.setattr(config, "RISK_USD_PER_TRADE", 5.0)
+    e = scalper_engine()
+    assert e.analyse is dollar_analyse and e.levels is dollar_levels and e.signal is generate_signal
+    assert e.risk_usd == 2.0                        # the dollar stop IS the risk budget: minimum lot only
+
+
+def test_dollar_analyse_prices_a_price_move_for_the_levels(monkeypatch):
+    import engines
+    from types import SimpleNamespace
+    info = SimpleNamespace(name="XAUUSD", point=0.01, trade_stops_level=20)
+    monkeypatch.setattr(engines, "usd_per_price_unit", lambda symbol, i: 1.0 if symbol == "XAUUSD" else None)
+    df = pd.DataFrame({"time": pd.date_range("2026-09-07 08:00", periods=60, freq="1min"),
+                       "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0})
+    out = engines.dollar_analyse(df.copy(), None, info)
+    assert "atr" in out and "rsi" in out
+    bar = out.iloc[-2]
+    assert bar["usd_per_unit"] == 1.0 and bar["point"] == 0.01 and bar["stops_dist"] == pytest.approx(0.20)
+
+
+def test_dollar_analyse_without_a_terminal_price_leaves_the_move_unpriced(monkeypatch):
+    import engines
+    monkeypatch.setattr(engines, "usd_per_price_unit", lambda symbol, i: None)
+    df = pd.DataFrame({"time": pd.date_range("2026-09-07 08:00", periods=60, freq="1min"),
+                       "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0})
+    bar = engines.dollar_analyse(df.copy(), None, None).iloc[-2]
+    assert pd.isna(bar["usd_per_unit"])
+    assert engines.dollar_levels("BUY", 100.0, 99.9, bar) is None
+
+
+def test_dollar_levels_use_the_bar_pricing_and_config_amounts(monkeypatch):
+    from engines import dollar_levels
+    monkeypatch.setattr(config, "EXIT_SL_USD", 2.0)
+    monkeypatch.setattr(config, "EXIT_TP_USD", 1.5)
+    lv = dollar_levels("SELL", 4300.50, 4300.18, {"usd_per_unit": 1.0, "point": 0.01, "stops_dist": 0.0})
+    assert lv.entry == 4300.18 and lv.sl == pytest.approx(4302.18) and lv.tp == pytest.approx(4298.68)
 
 
 def test_scalper_levels_use_bar_atr_and_config_multipliers():

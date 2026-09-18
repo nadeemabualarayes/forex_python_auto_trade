@@ -1,0 +1,45 @@
+ticks 50,759,162  2026-05-11 01:00:32.016000 -> 2026-09-17 22:59:59.957000 | halves split at 2026-07-15 | raw signals 9434
+
+===== exits +1.5 / -2.0
+MARKET entry                     ALL  6584 tr  win 51.4%  net -1797.75  PF 0.74  avg -0.273  DD 1813.54   filled 6584/6584 (100%)
+                                 H1   3550 tr  win 54.0%  net  -646.12  PF 0.82  avg -0.182  DD 663.86
+                                 H2   3034 tr  win 48.2%  net -1151.64  PF 0.66  avg -0.380  DD 1154.83
+LIMIT at touch, cancel  60s      ALL  5333 tr  win 48.7%  net -1972.45  PF 0.66  avg -0.370  DD 1989.76   filled 5333/6529 (82%)
+                                 H1   2999 tr  win 50.2%  net  -967.36  PF 0.70  avg -0.323  DD 984.67
+                                 H2   2334 tr  win 46.8%  net -1005.09  PF 0.62  avg -0.431  DD 1008.09
+                                 same signals with market entry: net -2933.95 PF 0.54  | median fill after 3s
+LIMIT at touch, cancel 180s      ALL  5694 tr  win 48.4%  net -2173.29  PF 0.66  avg -0.382  DD 2183.22   filled 5694/6384 (89%)
+                                 H1   3147 tr  win 50.3%  net -1009.06  PF 0.70  avg -0.321  DD 1019.00
+                                 H2   2547 tr  win 46.1%  net -1164.23  PF 0.60  avg -0.457  DD 1165.16
+                                 same signals with market entry: net -2704.11 PF 0.59  | median fill after 4s
+LIMIT at touch -10pt, cancel  60s ALL  4966 tr  win 48.9%  net -1821.68  PF 0.67  avg -0.367  DD 1839.43   filled 4966/6536 (76%)
+                                 H1   2806 tr  win 50.6%  net  -854.66  PF 0.71  avg -0.305  DD 872.41
+                                 H2   2160 tr  win 46.6%  net  -967.02  PF 0.61  avg -0.448  DD 970.02
+                                 same signals with market entry: net -3151.05 PF 0.49  | median fill after 5s
+LIMIT at touch -10pt, cancel 180s ALL  5411 tr  win 48.7%  net -2003.35  PF 0.66  avg -0.370  DD 2017.31   filled 5411/6325 (86%)
+                                 H1   3008 tr  win 50.8%  net  -900.33  PF 0.72  avg -0.299  DD 914.29
+                                 H2   2403 tr  win 46.2%  net -1103.02  PF 0.60  avg -0.459  DD 1103.90
+                                 same signals with market entry: net -2883.94 PF 0.55  | median fill after 6s
+
+===== exits +2.0 / -2.0
+MARKET entry                     ALL  6478 tr  win 45.3%  net -1735.89  PF 0.77  avg -0.268  DD 1761.86   filled 6478/6478 (100%)
+                                 H1   3482 tr  win 47.5%  net  -634.42  PF 0.84  avg -0.182  DD 663.91
+                                 H2   2996 tr  win 42.7%  net -1101.47  PF 0.70  avg -0.368  DD 1109.16
+LIMIT at touch, cancel  60s      ALL  5245 tr  win 42.7%  net -1971.14  PF 0.69  avg -0.376  DD 1991.11   filled 5245/6428 (82%)
+                                 H1   2938 tr  win 44.1%  net  -952.11  PF 0.73  avg -0.324  DD 972.08
+                                 H2   2307 tr  win 41.0%  net -1019.03  PF 0.65  avg -0.442  DD 1023.03
+                                 same signals with market entry: net -2983.33 PF 0.57  | median fill after 3s
+LIMIT at touch, cancel 180s      ALL  5598 tr  win 42.7%  net -2121.31  PF 0.69  avg -0.379  DD 2132.73   filled 5598/6282 (89%)
+                                 H1   3082 tr  win 44.3%  net  -979.45  PF 0.74  avg -0.318  DD 990.87
+                                 H2   2516 tr  win 40.7%  net -1141.86  PF 0.64  avg -0.454  DD 1143.79
+                                 same signals with market entry: net -2845.28 PF 0.61  | median fill after 4s
+LIMIT at touch -10pt, cancel  60s ALL  4882 tr  win 42.7%  net -1882.95  PF 0.69  avg -0.386  DD 1894.72   filled 4882/6425 (76%)
+                                 H1   2746 tr  win 44.0%  net  -941.83  PF 0.72  avg -0.343  DD 953.68
+                                 H2   2136 tr  win 41.1%  net  -941.13  PF 0.65  avg -0.441  DD 945.13
+                                 same signals with market entry: net -3211.81 PF 0.52  | median fill after 5s
+LIMIT at touch -10pt, cancel 180s ALL  5313 tr  win 42.7%  net -2059.16  PF 0.69  avg -0.388  DD 2065.72   filled 5313/6216 (85%)
+                                 H1   2939 tr  win 44.2%  net  -980.49  PF 0.73  avg -0.334  DD 987.13
+                                 H2   2374 tr  win 40.8%  net -1078.67  PF 0.64  avg -0.454  DD 1080.55
+                                 same signals with market entry: net -3082.54 PF 0.57  | median fill after 6s
+
+PASSED the pre-registered rule (PF > 1 whole + both halves, >= 200 trades per half): none

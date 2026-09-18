@@ -1,0 +1,41 @@
+ticks 50,759,162  2026-05-11 01:00:32.016000 -> 2026-09-17 22:59:59.957000  | halves split at 2026-07-15
+median spread 22 points
+
+M1T pullback 10/30  atr15_3  ALL 3570 tr  win 31.3%  net -1027.18  PF 0.88  avgR -0.108  worst -141.70  DD 1027.18
+                             H1  1865 tr  win 32.8%  net  -223.96  PF 0.95  avgR -0.043  worst -22.86  DD 279.22
+                             H2  1705 tr  win 29.7%  net  -803.22  PF 0.80  avgR -0.179  worst -141.70  DD 808.97
+M1T pullback 10/30  atr2_4   ALL 2508 tr  win 31.6%  net -1062.42  PF 0.87  avgR -0.114  worst -141.70  DD 1065.31
+                             H1  1300 tr  win 32.5%  net  -427.15  PF 0.91  avgR -0.076  worst -52.67  DD 441.89
+                             H2  1208 tr  win 30.5%  net  -635.26  PF 0.84  avgR -0.154  worst -141.70  DD 673.21
+M1T pullback 10/30  usd      ALL 7857 tr  win 51.5%  net -1978.53  PF 0.75  avgR -0.126  worst -28.53  DD 1981.40
+                             H1  4443 tr  win 53.4%  net  -804.59  PF 0.82  avgR -0.091  worst -28.53  DD 806.09
+                             H2  3414 tr  win 49.0%  net -1173.94  PF 0.68  avgR -0.172  worst -22.65  DD 1177.13
+M1T pullback 20/50  atr15_3  ALL 2611 tr  win 31.3%  net  -730.25  PF 0.88  avgR -0.118  worst -141.92  DD 811.72
+                             H1  1388 tr  win 32.5%  net  -176.43  PF 0.95  avgR -0.060  worst -27.45  DD 244.13
+                             H2  1223 tr  win 30.0%  net  -553.82  PF 0.81  avgR -0.183  worst -141.92  DD 591.16
+M1T pullback 20/50  atr2_4   ALL 1881 tr  win 32.7%  net  -419.87  PF 0.93  avgR -0.072  worst -141.92  DD 636.60
+                             H1   963 tr  win 34.2%  net   -16.53  PF 0.99  avgR -0.009  worst -27.45  DD 230.56
+                             H2   918 tr  win 31.2%  net  -403.34  PF 0.86  avgR -0.139  worst -141.92  DD 475.98
+M1T pullback 20/50  usd      ALL 4983 tr  win 51.4%  net -1310.33  PF 0.75  avgR -0.131  worst -34.69  DD 1310.33
+                             H1  2750 tr  win 53.6%  net  -483.89  PF 0.82  avgR -0.088  worst -28.18  DD 485.32
+                             H2  2233 tr  win 48.8%  net  -826.44  PF 0.66  avgR -0.185  worst -34.69  DD 829.92
+M1T donchian 40     atr15_3  ALL 2436 tr  win 31.6%  net  -603.80  PF 0.90  avgR -0.085  worst -21.85  DD 613.38
+                             H1  1300 tr  win 31.3%  net  -474.73  PF 0.86  avgR -0.089  worst -21.85  DD 482.54
+                             H2  1136 tr  win 31.9%  net  -129.08  PF 0.95  avgR -0.081  worst -21.68  DD 211.29
+M1T donchian 40     atr2_4   ALL 1967 tr  win 32.4%  net  -686.19  PF 0.89  avgR -0.077  worst -54.83  DD 703.05
+                             H1  1054 tr  win 32.5%  net  -399.20  PF 0.89  avgR -0.068  worst -54.83  DD 429.89
+                             H2   913 tr  win 32.2%  net  -286.98  PF 0.90  avgR -0.087  worst -41.96  DD 321.04
+M1T donchian 40     usd      ALL 4303 tr  win 50.6%  net -1217.90  PF 0.73  avgR -0.142  worst -54.83  DD 1218.79
+                             H1  2351 tr  win 50.6%  net  -686.95  PF 0.72  avgR -0.146  worst -54.83  DD 687.17
+                             H2  1952 tr  win 50.6%  net  -530.95  PF 0.74  avgR -0.136  worst  -3.05  DD 534.15
+M1T donchian 80     atr15_3  ALL 1682 tr  win 31.6%  net  -355.15  PF 0.92  avgR -0.088  worst -21.68  DD 458.99
+                             H1   912 tr  win 30.9%  net  -369.77  PF 0.85  avgR -0.098  worst -17.03  DD 409.02
+                             H2   770 tr  win 32.5%  net   +14.62  PF 1.01  avgR -0.077  worst -21.68  DD 113.61
+M1T donchian 80     atr2_4   ALL 1380 tr  win 31.5%  net  -499.31  PF 0.89  avgR -0.110  worst -54.83  DD 565.10
+                             H1   744 tr  win 31.7%  net  -337.95  PF 0.87  avgR -0.101  worst -54.83  DD 394.90
+                             H2   636 tr  win 31.3%  net  -161.36  PF 0.92  avgR -0.122  worst -41.96  DD 199.43
+M1T donchian 80     usd      ALL 2980 tr  win 50.6%  net  -868.90  PF 0.72  avgR -0.146  worst -54.83  DD 877.19
+                             H1  1631 tr  win 49.8%  net  -540.32  PF 0.69  avgR -0.166  worst -54.83  DD 552.57
+                             H2  1349 tr  win 51.4%  net  -328.58  PF 0.76  avgR -0.122  worst  -3.05  DD 333.52
+
+PASSED the pre-registered rule (PF > 1 whole + both halves, >= 20 trades per half): none

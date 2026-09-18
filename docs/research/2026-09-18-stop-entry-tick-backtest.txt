@@ -1,0 +1,31 @@
+STOP entries | ticks 50,759,162 | halves split 2026-07-15 | raw signals 9434
+
+===== exits +1.5 / -2.0
+STOP +10pt, cancel 60s   ALL  6261 tr  win 50.9%  net -1818.91  PF 0.72  avg -0.291  DD 1835.97   filled 6261/6824 (92%)  median fill 1s
+                         H1   3369 tr  win 53.3%  net  -703.71  PF 0.79  avg -0.209  DD 721.77
+                         H2   2892 tr  win 48.0%  net -1115.20  PF 0.65  avg -0.386  DD 1118.20
+STOP +20pt, cancel 60s   ALL  6050 tr  win 50.9%  net -1726.52  PF 0.73  avg -0.285  DD 1737.13   filled 6050/7002 (86%)  median fill 2s
+                         H1   3264 tr  win 53.8%  net  -614.20  PF 0.81  avg -0.188  DD 621.18
+                         H2   2786 tr  win 47.6%  net -1112.32  PF 0.64  avg -0.399  DD 1117.45
+STOP +30pt, cancel 60s   ALL  5801 tr  win 50.9%  net -1670.29  PF 0.73  avg -0.288  DD 1695.73   filled 5801/7165 (81%)  median fill 4s
+                         H1   3146 tr  win 53.8%  net  -598.23  PF 0.81  avg -0.190  DD 619.16
+                         H2   2655 tr  win 47.3%  net -1072.06  PF 0.64  avg -0.404  DD 1078.07
+STOP +50pt, cancel 60s   ALL  5232 tr  win 51.0%  net -1467.52  PF 0.73  avg -0.280  DD 1509.70   filled 5232/7521 (70%)  median fill 8s
+                         H1   2878 tr  win 53.2%  net  -615.03  PF 0.79  avg -0.214  DD 650.77
+                         H2   2354 tr  win 48.4%  net  -852.49  PF 0.67  avg -0.362  DD 858.94
+
+===== exits +2.0 / -2.0
+STOP +10pt, cancel 60s   ALL  6187 tr  win 44.9%  net -1765.55  PF 0.76  avg -0.285  DD 1807.41   filled 6187/6745 (92%)  median fill 1s
+                         H1   3322 tr  win 47.3%  net  -635.82  PF 0.83  avg -0.191  DD 672.21
+                         H2   2865 tr  win 42.0%  net -1129.73  PF 0.68  avg -0.394  DD 1137.20
+STOP +20pt, cancel 60s   ALL  5985 tr  win 44.8%  net -1693.09  PF 0.76  avg -0.283  DD 1732.60   filled 5985/6930 (86%)  median fill 2s
+                         H1   3220 tr  win 47.4%  net  -591.46  PF 0.84  avg -0.184  DD 623.34
+                         H2   2765 tr  win 41.9%  net -1101.63  PF 0.68  avg -0.398  DD 1111.26
+STOP +30pt, cancel 60s   ALL  5754 tr  win 44.7%  net -1671.48  PF 0.75  avg -0.290  DD 1718.68   filled 5754/7106 (81%)  median fill 4s
+                         H1   3114 tr  win 47.2%  net  -621.89  PF 0.83  avg -0.200  DD 663.58
+                         H2   2640 tr  win 41.8%  net -1049.59  PF 0.68  avg -0.398  DD 1057.09
+STOP +50pt, cancel 60s   ALL  5204 tr  win 44.8%  net -1514.97  PF 0.75  avg -0.291  DD 1574.79   filled 5204/7483 (70%)  median fill 8s
+                         H1   2859 tr  win 46.7%  net  -632.28  PF 0.81  avg -0.221  DD 686.57
+                         H2   2345 tr  win 42.6%  net  -882.69  PF 0.69  avg -0.376  DD 888.22
+
+PASSED: none

@@ -10,7 +10,7 @@ import MetaTrader5 as mt5
 import config
 from analytics import pair_trades, build_analytics, trade_dicts, since
 from engines import build_engines, engine_names
-from execution import init_mt5, bot_positions, trading_blockers, set_known_magics
+from execution import init_mt5, bot_positions, trading_blockers, set_known_magics, stacking_allowed
 from history import TradeStore, sync_deals, snapshot_equity
 from journal import setup_logging, log
 from news import NewsFilter
@@ -213,6 +213,15 @@ def warn_if_trading_blocked() -> list[str]:
     return reasons
 
 
+def enforce_stacking(engines: list) -> list:
+    """Startup guard: engines that stack entries fall back to one position per symbol on a netting account."""
+    if all(e.max_open_positions <= 1 for e in engines) or stacking_allowed(mt5.account_info()):
+        return engines
+    log.warning("STACKING OFF: not a hedging account; every engine is held to one position per symbol")
+    send_telegram("⚠️ <b>Stacked entries off</b>\nThis is not a hedging account; one position per symbol.")
+    return [replace(e, max_open_positions=1) for e in engines]
+
+
 def run() -> int:
     """Returns the process exit code: 0 on manual stop, 1 when MT5 is unusable at startup.
 
@@ -229,9 +238,11 @@ def run() -> int:
         log.error("no tradable symbols, exiting with code 1 so the scheduler restarts us")
         return 1
 
+    engines = enforce_stacking(engines)
     for e in engines:
-        log.info("START engine=%s magic=%s symbols=%s risk=$%.2f/trade cap=%d/day trend=%s",
-                 e.name, e.magic, [s for s in e.symbols if s in symbols], e.risk_usd, e.max_trades_per_day, e.trend_filter)
+        log.info("START engine=%s magic=%s symbols=%s risk=$%.2f/trade cap=%d/day open<=%d trend=%s",
+                 e.name, e.magic, [s for s in e.symbols if s in symbols], e.risk_usd, e.max_trades_per_day,
+                 e.max_open_positions, e.trend_filter)
     log.info("START session=%s news=%s", config.SESSION_FILTER_ENABLED, config.NEWS_FILTER_ENABLED)
     send_telegram("\U0001F680 <b>Bot started</b>\n" + "\n".join(
         f"▪ {e.name}: {', '.join(s for s in e.symbols if s in symbols) or 'no symbols'}" for e in engines))

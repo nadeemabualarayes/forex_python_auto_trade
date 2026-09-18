@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from typing import Callable
 
 import config
-from strategy import generate_signal, build_levels
+from execution import usd_per_price_unit
+from strategy import generate_signal, build_levels, build_dollar_levels
 from technicals import compute_indicators, compute_trend, attach_trend
 from london import london_analyse, london_signal, london_levels
 
@@ -31,6 +32,7 @@ class Engine:
     manage: bool
     breakeven_atr: float
     trail_atr: float
+    max_open_positions: int = 1  # per symbol; above 1 a new signal may open while earlier trades still run
 
 
 # -- Scalper adapters ---------------------------------------------------------------
@@ -46,15 +48,38 @@ def scalper_levels(side: str, ask: float, bid: float, bar):
     return build_levels(side, ask, bid, float(bar["atr"]))
 
 
+# -- Fixed-dollar exits (config.EXIT_MODE == "usd") --------------------------------------
+def dollar_analyse(df, htf=None, info=None):
+    """scalper_analyse plus what the levels need to turn dollars into a price distance: the terminal's value
+    of a 1.0 move on the minimum lot, the point, and the broker's minimum stop distance."""
+    df = scalper_analyse(df, htf, info)
+    value = usd_per_price_unit(info.name, info) if info is not None else None
+    df["usd_per_unit"] = float("nan") if value is None else value
+    df["point"] = info.point if info is not None else 0.0
+    df["stops_dist"] = info.trade_stops_level * info.point if info is not None else 0.0
+    return df
+
+
+def dollar_levels(side: str, ask: float, bid: float, bar):
+    return build_dollar_levels(side, ask, bid, config.EXIT_SL_USD, config.EXIT_TP_USD,
+                               bar["usd_per_unit"], float(bar["point"]), float(bar["stops_dist"]))
+
+
 def scalper_engine() -> Engine:
+    if config.EXIT_MODE == "usd":
+        # The dollar stop is priced for the minimum lot, so it is also the whole risk budget.
+        analyse, levels, risk_usd = dollar_analyse, dollar_levels, config.EXIT_SL_USD
+    else:
+        analyse, levels, risk_usd = scalper_analyse, scalper_levels, config.RISK_USD_PER_TRADE
     return Engine(
         name="scalper", magic=config.MAGIC_NUMBER, comment="AlgoBot",
         symbols=tuple(config.SYMBOLS), timeframe=config.TIMEFRAME, lookback=config.RATES_LOOKBACK,
         trend_filter=config.TREND_FILTER_ENABLED,
-        analyse=scalper_analyse, signal=generate_signal, levels=scalper_levels,
-        risk_usd=config.RISK_USD_PER_TRADE, max_trades_per_day=config.MAX_TRADES_PER_DAY,
+        analyse=analyse, signal=generate_signal, levels=levels,
+        risk_usd=risk_usd, max_trades_per_day=config.MAX_TRADES_PER_DAY,
         max_consecutive_losses=config.MAX_CONSECUTIVE_LOSSES,
         manage=config.MANAGE_POSITIONS, breakeven_atr=config.BREAKEVEN_ATR, trail_atr=config.TRAIL_ATR,
+        max_open_positions=config.MAX_OPEN_POSITIONS,
     )
 
 
